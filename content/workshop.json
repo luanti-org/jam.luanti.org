@@ -1,0 +1,136 @@
+{
+    "pageTitle": "{{year}} {{title}} · The wizard's workshop",
+    "title": "Luanti Game Jam",
+    "heading": "{{year}} {{title}}",
+    "subtext": "A little magic. A little game.",
+    "description": "A little wizard workshop for making, sharing, and discovering Luanti jam games.",
+    "roomHelp": "Choose a glowing object to explore.",
+    "panels": {
+        "ingredients-panel": {
+            "title": "The ingredient pantry",
+            "hotspot": "Ingredient pantry",
+            "accessibleLabel": "Ingredient pantry: resources and inspiration"
+        },
+        "rules-panel": {
+            "title": "A word with the wizard",
+            "hotspot": "Talk to the wizard",
+            "accessibleLabel": "Talk to the wizard: jam rules and advice"
+        },
+        "submission-panel": {
+            "title": "The cauldron",
+            "hotspot": "Submit a brew",
+            "accessibleLabel": "Cauldron: submit a game and check its status"
+        },
+        "shelf-panel": {
+            "title": "The brew shelf",
+            "hotspot": "Brew shelf",
+            "accessibleLabel": "Brew shelf: play approved games"
+        }
+    },
+    "footer": {
+        "copyright": "© {{year}} Luanti",
+        "links": [
+            {
+                "label": "Source",
+                "href": "https://github.com/luanti-org/jam.luanti.org"
+            }
+        ],
+        "plainTextLabel": "Text version",
+        "copyrightUrl": "https://www.luanti.org/",
+        "motionLabel": "Reduce motion",
+        "accessibleLabel": "Project links and preferences"
+    },
+    "artwork": [
+        {
+            "title": "Gustav Wentzel, Kitchen with Fireplace",
+            "url": "https://commons.wikimedia.org/wiki/File:Gustav_Wentzel_-_Kitchen_with_Fireplace_-_NG.M.02363_-_National_Museum_of_Art,_Architecture_and_Design.jpg",
+            "credit": "Public-domain painting, National Museum of Norway. Source reproduction: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)."
+        },
+        {
+            "title": "Vintage witch's cauldron",
+            "url": "https://www.publicdomainpictures.net/en/view-image.php?image=413977&picture=clipart-witches-cauldron-vintage",
+            "credit": "Public Domain Pictures, CC0."
+        },
+        {
+            "title": "William Paul Childers, Shaker Cabinet",
+            "url": "https://www.nga.gov/artworks/29261-shaker-cabinet",
+            "credit": "National Gallery of Art, public domain."
+        },
+        {
+            "title": "Various glass bottles",
+            "url": "https://www.nga.gov/search?keywords=glass%20bottle",
+            "credit": "National Gallery of Art, public domain."
+        }
+    ],
+    "roomLabel": "The wizard's workshop",
+    "roomAlt": "A warm wooden workshop with a fireplace, shelves, and a cupboard.",
+    "speechLabel": "Read the wizard's advice and jam rules",
+    "closeLabel": "Close panel and return to the workshop",
+    "themesHeading": "Theme scraps (optional)",
+    "resourcesHeading": "Resource crates",
+    "optionalTheme": "Optional theme",
+    "mediaLabels": {
+        "tool": "Tool",
+        "texture": "Textures / 2D art",
+        "model": "3D models",
+        "sound": "Sound"
+    },
+    "licenseLabel": "License: {{license}}",
+    "submission": {
+        "repositoryLabel": "Public HTTPS repository URL",
+        "repositoryPlaceholder": "https://codeberg.org/you/your-game",
+        "submit": "Submit your brew",
+        "inspecting": "Inspecting...",
+        "inspectionHelp": "Checks usually take seconds, though delays are possible. Keep this page open; you can explore the room while you wait.",
+        "httpsError": "Use an HTTP or HTTPS repository URL. It will be submitted over HTTPS.",
+        "inspectionFailure": "Inspection failed: {{error}}",
+        "submitFailure": "Submission could not be completed: {{error}}",
+        "checking": "Checking submission...",
+        "refresh": "Refresh",
+        "another": "Submit another game",
+        "statuses": {
+            "pending": "awaiting review",
+            "approved": "approved and published",
+            "rejected": "rejected",
+            "superseded": "replaced by a newer submission",
+            "removed": "unpublished"
+        },
+        "commitLabel": "Commit",
+        "copyLink": "Copy status link",
+        "linkCopied": "Status link copied.",
+        "copyFailure": "Could not copy the status link. Copy the URL from your address bar."
+    },
+    "shelf": {
+        "refresh": "Refresh shelf",
+        "loading": "Loading approved brews...",
+        "empty": "No approved entries yet.",
+        "failure": "{{error}}. Refresh to retry; any previous entries are kept.",
+        "screenshotUnavailable": "Screenshot unavailable. You can still visit the game's repository.",
+        "new": "NEW",
+        "newLabel": "Games published in the last 24 hours"
+    },
+    "guide": {
+        "title": "{{title}} - Text guide",
+        "rulesHeading": "Rules",
+        "ingredientsHeading": "Ingredients and resources",
+        "back": "Back to the workshop",
+        "navigationLabel": "Guide navigation",
+        "mediaLabel": "Media:"
+    },
+    "admin": {
+        "title": "Jam administration",
+        "workshop": "Workshop",
+        "keyPlaceholder": "Enter your twelve-word key",
+        "keyLabel": "Administrator key",
+        "showKey": "Show",
+        "hideKey": "Hide",
+        "useKey": "Use key",
+        "generate": "Generate",
+        "clear": "Clear",
+        "publicKey": "Public key:",
+        "entries": "Entries",
+        "refresh": "Refresh",
+        "entryActions": "Entry actions",
+        "allEntries": "All entries"
+    }
+}

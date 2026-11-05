@@ -1,0 +1,9 @@
+{
+    "apiPerMinute": 300,
+    "apiPerHour": 5000,
+    "apiTrackedIps": 10000,
+    "inspectionPerIpPerHour": 20,
+    "inspectionPerRepositoryPerHour": 60,
+    "inspectionGlobalPerHour": 1000,
+    "inspectionTimeoutsPerHour": 2
+}

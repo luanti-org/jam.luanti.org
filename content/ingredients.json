@@ -1,0 +1,117 @@
+[
+    {
+        "id": "theme-small-world",
+        "name": "One small world",
+        "description": "Build a whole adventure in a tiny place.",
+        "category": "Theme"
+    },
+    {
+        "id": "theme-change-of-perspective",
+        "name": "A change of perspective",
+        "description": "See a familiar world in a new way.",
+        "category": "Theme"
+    },
+    {
+        "id": "theme-finding-balance",
+        "name": "Finding balance",
+        "description": "Keep opposing forces in harmony.",
+        "category": "Theme"
+    },
+    {
+        "id": "kenney",
+        "name": "Kenney game assets",
+        "description": "Ready-made sprites, textures, models, and sounds for games.",
+        "category": "General assets",
+        "url": "https://kenney.nl/assets",
+        "media": ["texture", "model", "sound"],
+        "license": "CC0"
+    },
+    {
+        "id": "kaykit",
+        "name": "KayKit asset packs",
+        "description": "Stylized low-poly models and matching texture packs.",
+        "category": "General assets",
+        "url": "https://kaylousberg.itch.io/",
+        "media": ["model", "texture"],
+        "license": "Mixed"
+    },
+    {
+        "id": "poly-haven",
+        "name": "Poly Haven materials & models",
+        "description": "A library of materials, textures, and 3D models.",
+        "category": "3D materials",
+        "url": "https://polyhaven.com/",
+        "media": ["texture", "model"],
+        "license": "CC0"
+    },
+    {
+        "id": "itch-io-cc0-16-16",
+        "name": "itch.io 16×16 textures",
+        "description": "Browse free 16×16 pixel textures and tilesets.",
+        "category": "Pixel art",
+        "url": "https://itch.io/game-assets/assets-cc0/free/tag-16x16",
+        "media": ["texture"],
+        "license": "CC0"
+    },
+    {
+        "id": "opengameart-textures",
+        "name": "OpenGameArt textures",
+        "description": "A community collection of reusable textures.",
+        "category": "Pixel art",
+        "url": "https://opengameart.org/content/cc0-textures-1",
+        "media": ["texture"],
+        "license": "CC0"
+    },
+    {
+        "id": "abstraction-music-loops",
+        "name": "Abstraction Music Loops",
+        "description": "Looping music to give your game a soundtrack.",
+        "category": "Music",
+        "url": "https://tallbeard.itch.io/music-loop-bundle",
+        "media": ["sound"],
+        "license": "CC0"
+    },
+    {
+        "id": "beepbox",
+        "name": "BeepBox music maker",
+        "description": "Compose a small soundtrack in the browser.",
+        "category": "Music",
+        "url": "https://www.beepbox.co/",
+        "media": ["tool", "sound"]
+    },
+    {
+        "id": "jfxr",
+        "name": "jfxr sound generator",
+        "description": "Create sound effects in the browser.",
+        "category": "Sound",
+        "url": "https://jfxr.frozenfractal.com/",
+        "media": ["tool", "sound"]
+    },
+    {
+        "id": "freesound",
+        "name": "Freesound",
+        "description": "A community library of recordings and sound effects.",
+        "category": "Sound",
+        "url": "https://freesound.org/",
+        "media": ["sound"],
+        "license": "Mixed"
+    },
+    {
+        "id": "game-icons-net",
+        "name": "Game-icons.net",
+        "description": "A large collection of customizable game icons.",
+        "category": "Icons",
+        "url": "https://game-icons.net/",
+        "media": ["texture"],
+        "license": "CC BY / PD"
+    },
+    {
+        "id": "free-game-dev-assets",
+        "name": "Free Game Dev Assets",
+        "description": "A directory of game-making tools and asset libraries.",
+        "category": "More resources",
+        "url": "https://tmhsdigital.github.io/Free-Game-Dev-Assets/",
+        "media": ["tool", "texture", "model", "sound"],
+        "license": "Mixed"
+    }
+]

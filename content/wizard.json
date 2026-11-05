@@ -1,0 +1,21 @@
+{
+    "greeting": "Greetings, artificer! Read the jam rules here, visit the pantry for inspiration, then the cauldron to submit.",
+    "quips": [
+        "A small, imperfect game is a powerful spell. Try something new!",
+        "Ingredients are inspiration— you don't need to empty the whole pantry.",
+        "Save your status link. Even wizards misplace their receipts.",
+        "Submit early, submit often. Give the fates some time, and yourself room to breathe.",
+        "Remember your licenses and credits. A borrowed spell still has an author.",
+        "My finest potion? A full night's sleep before debugging.",
+        "Don't worry, you're in good company. We're all lunatics here!",
+        "One wizard's failed brew is another wizard's lunch... or something. You can submit a valiant effort and try anew!",
+        "Stop obsessing over perfect ingredients, it's the effect that matters.",
+        "Beware the scope demons who creep! You can always expand your game after the jam.",
+        "I'd rather drink an ugly sweet potion than a bitter pretty one. Looks aren't everything!",
+        "Don't waste the work of other wizards— we publish recipes and ingredients for a reason!",
+        "What's more powerful than a wizard? Two wizards, obviously.",
+        "Stuck? I hear ducks are all the rage... any familiar will do, though."
+    ],
+    "quipIntervalMs": 20000,
+    "speechDurationMs": 8000
+}

@@ -1,0 +1,17 @@
+# Dependencies and generated output
+node_modules/
+/dist/
+*.tsbuildinfo
+
+# Runtime database and administrator policy
+/data/
+
+# Local configuration and credentials; keep example configuration
+.env*
+!.env*.example
+
+# Logs and operating-system metadata
+*.log
+*.log.[0-9]*
+.DS_Store
+Thumbs.db

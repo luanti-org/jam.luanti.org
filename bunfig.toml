@@ -1,0 +1,11 @@
+[serve.static]
+env = "PUBLIC_API_*"
+
+[test]
+root = "./tests"
+
+# TypeScript and JavaScript are ESLint-owned; Bun formats HTML, CSS and JSON.
+[fmt]
+printWidth = 110
+tabWidth = 4
+ignorePatterns = ["**/*.ts", "**/*.mjs"]

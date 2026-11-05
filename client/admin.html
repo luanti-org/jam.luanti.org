@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#1a1e18" />
+        <title data-copy="admin.title"></title>
+        <link rel="icon" href="./assets/luanti.svg" type="image/svg+xml" />
+        <link rel="stylesheet" href="./styles.css" />
+        <script type="module" src="./admin.ts"></script>
+    </head>
+    <body>
+        <header>
+            <div class="brand">
+                <img src="./assets/luanti.svg" alt="" width="48" height="48" />
+                <h1 data-copy="admin.title"></h1>
+            </div>
+            <a href="./index.html" data-copy="admin.workshop"></a>
+        </header>
+        <main>
+            <form id="key-form" class="key-panel">
+                <div class="key-entry">
+                    <input
+                        id="key"
+                        type="password"
+                        required
+                        autocomplete="off"
+                        spellcheck="false"
+                        data-copy-placeholder="admin.keyPlaceholder"
+                        data-copy-aria-label="admin.keyLabel"
+                    />
+                    <button
+                        id="show-key"
+                        type="button"
+                        aria-pressed="false"
+                        data-copy="admin.showKey"
+                    ></button>
+                    <button type="submit" class="primary" data-copy="admin.useKey"></button>
+                    <button id="create" type="button" data-copy="admin.generate"></button>
+                    <button id="clear" type="button" data-copy="admin.clear"></button>
+                </div>
+                <p id="identity-info" hidden>
+                    <span data-copy="admin.publicKey"></span> <code id="public-key"></code>
+                </p>
+            </form>
+            <section aria-labelledby="entries-title">
+                <div class="list-heading">
+                    <h2 id="entries-title">
+                        <span data-copy="admin.entries"></span> <span id="entry-count"></span>
+                    </h2>
+                    <button id="refresh" type="button" data-copy="admin.refresh"></button>
+                </div>
+                <p id="result" role="status"></p>
+                <fieldset id="reviews" data-copy-aria-label="admin.entryActions" disabled>
+                    <ul id="queue" data-copy-aria-label="admin.allEntries"></ul>
+                </fieldset>
+            </section>
+        </main>
+        <footer class="page-footer">
+            <a id="copyright" data-copy="footer.copyright" data-copy-href="footer.copyrightUrl"></a>
+        </footer>
+        <svg class="status-symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <symbol id="status-pending" viewBox="0 0 24 24">
+                <circle cx="12" cy="13" r="8" />
+                <path d="M12 9v5l3 2M9 2h6M12 2v3" />
+            </symbol>
+            <symbol id="status-approved" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="9" />
+                <path d="m7 12 3 3 7-7" />
+            </symbol>
+            <symbol id="status-rejected" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="9" />
+                <path d="m8 8 8 8m0-8-8 8" />
+            </symbol>
+            <symbol id="status-removed" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="9" />
+                <path d="m6 18 12-12" />
+            </symbol>
+            <symbol id="status-superseded" viewBox="0 0 24 24">
+                <path d="M4 10a8 8 0 1 1 1 7M4 4v6h6M12 7v6l4 2" />
+            </symbol>
+        </svg>
+    </body>
+</html>

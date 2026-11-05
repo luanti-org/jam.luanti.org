@@ -1,0 +1,32 @@
+[
+    {
+        "host": "github.com",
+        "nested": false,
+        "lowercase": true,
+        "commit": "/tree/{sha}"
+    },
+    {
+        "host": "gitlab.com",
+        "nested": true,
+        "lowercase": true,
+        "commit": "/-/tree/{sha}"
+    },
+    {
+        "host": "codeberg.org",
+        "nested": false,
+        "lowercase": true,
+        "commit": "/src/commit/{sha}"
+    },
+    {
+        "host": "git.minetest.land",
+        "nested": false,
+        "lowercase": true,
+        "commit": "/src/commit/{sha}"
+    },
+    {
+        "host": "bitbucket.org",
+        "nested": false,
+        "lowercase": true,
+        "commit": "/src/{sha}"
+    }
+]

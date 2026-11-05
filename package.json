@@ -1,0 +1,42 @@
+{
+    "name": "2026-luanti-game-jam",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "sh -c 'export PUBLIC_API_URL=\"${PUBLIC_API_URL:-http://127.0.0.1:${API_PORT:-3000}}\"; exec bun --watch scripts/dev.ts'",
+        "start": "bun server/index.ts",
+        "dev:api": "bun --watch server/index.ts",
+        "typecheck": "tsc --noEmit",
+        "format": "eslint . --fix && bun fmt \"**/*.{html,css,json}\"",
+        "lint": "eslint .",
+        "check": "bun run format:check && bun run typecheck",
+        "test": "bun test tests",
+        "test:https": "bun scripts/smoke.ts",
+        "build": "bun scripts/build.ts",
+        "format:check": "eslint . && bun fmt --check \"**/*.{html,css,json}\"",
+        "test:sandbox": "TEST_SANDBOX=1 bun test tests/sandbox.test.ts",
+        "test:release": "bun run check && TEST_SANDBOX=1 bun test"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9",
+        "@stylistic/eslint-plugin": "^5.10.0",
+        "@types/bun": "^1.0.0",
+        "eslint": "^9",
+        "typescript": "^5.0.0",
+        "typescript-eslint": "^8.72.1"
+    },
+    "dependencies": {
+        "@hono/zod-validator": "^0.9.1",
+        "@noble/curves": "^2.4.0",
+        "@noble/hashes": "^2.4.0",
+        "@scure/bip39": "^2.4.0",
+        "hono": "^4",
+        "ipaddr.js": "^2.5.0",
+        "jose": "^6.2.14",
+        "sharp": "^0.35.5",
+        "zod": "^4.6.7"
+    },
+    "engines": {
+        "bun": ">=1.4.4"
+    }
+}

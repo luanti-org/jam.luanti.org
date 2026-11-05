@@ -1,0 +1,238 @@
+@import "./theme.css";
+
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100svh;
+    max-width: 1040px;
+    margin: auto;
+    padding: 1.5rem 1rem;
+}
+
+:where(header, .list-heading, .review-heading, .review-actions) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+header {
+    margin-bottom: 1.5rem;
+}
+
+:is(h1, h2, h3, p) {
+    margin: 0;
+}
+
+h1 {
+    font-size: clamp(1.5rem, 4vw, 2rem);
+}
+
+h2 {
+    font-size: 1.5rem;
+}
+
+h3 {
+    min-width: 0;
+    font-size: 1.125rem;
+}
+
+main {
+    flex: 1;
+}
+
+.key-panel {
+    margin: 0 0 1.5rem;
+}
+
+.key-entry {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.key-entry button {
+    padding-inline: 0.375rem;
+}
+
+.key-entry input {
+    flex: 1 1 18rem;
+}
+
+:is(#clear, button[data-operation="reject"], button[data-operation="unpublish"]) {
+    color: var(--danger);
+    background: #352b24;
+    border-color: #735149;
+}
+
+:is(.hint, #identity-info, #result) {
+    color: var(--muted);
+    font-size: 0.875rem;
+}
+
+:is(.hint, #identity-info) {
+    margin-top: 0.5rem;
+}
+
+#public-key {
+    user-select: all;
+    color: var(--ink);
+}
+
+#result {
+    margin: 0.75rem 0;
+}
+
+#result:empty {
+    display: none;
+}
+
+#entry-count {
+    color: var(--muted);
+    font-size: 1rem;
+    font-weight: normal;
+}
+
+fieldset {
+    min-width: 0;
+    padding: 0;
+    margin: 0;
+    border: 0;
+}
+
+#queue {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.review-row {
+    padding: 0.75rem 0;
+    border-top: 1px solid var(--line);
+}
+
+.review-heading {
+    justify-content: flex-start;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.375rem 0.75rem;
+}
+
+.review-heading > :is(code, time, .review-repository) {
+    color: var(--muted);
+    font-size: 0.875rem;
+}
+
+.review-repository {
+    min-width: 0;
+}
+
+.review-heading h3 a {
+    text-decoration: none;
+}
+
+.review-heading h3 a:hover {
+    text-decoration: underline;
+}
+
+.review-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    flex-shrink: 0;
+    padding: 0.25rem 0.5rem;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.review-status svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.review-status[data-status="pending"] {
+    background: #493e28;
+    color: #f1d7a2;
+}
+
+.review-status[data-status="approved"] {
+    background: #344131;
+    color: #d2e1bb;
+}
+
+.review-status:is([data-status="rejected"], [data-status="removed"]) {
+    color: #efbeb2;
+    background: #4a3029;
+}
+
+.status-symbols {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+}
+
+.page-footer a {
+    color: var(--muted);
+}
+
+.review-actions {
+    margin-top: 0.75rem;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.review-actions input {
+    flex: 1 1 16rem;
+    max-width: 32rem;
+    font-size: 0.875rem;
+}
+
+.review-row details {
+    margin-top: 0.5rem;
+}
+
+.review-row summary {
+    width: fit-content;
+    color: var(--link);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.review-row details p {
+    max-width: 70ch;
+    margin: 0.5rem 0;
+}
+
+.review-row img {
+    display: block;
+    max-width: 100%;
+    max-height: 320px;
+    width: auto;
+    height: auto;
+    margin-top: 0.75rem;
+}
+
+@media (max-width: 520px) {
+    header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .brand {
+        gap: 0.5rem;
+    }
+
+    .brand img {
+        width: 32px;
+        height: 32px;
+    }
+}
