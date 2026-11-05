@@ -16,6 +16,6 @@
         "What's more powerful than a wizard? Two wizards, obviously.",
         "Stuck? I hear ducks are all the rage... any familiar will do, though."
     ],
-    "quipIntervalMs": 20000,
+    "quipIntervalMs": 30000,
     "speechDurationMs": 8000
 }
