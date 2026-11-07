@@ -28,5 +28,17 @@
         "nested": false,
         "lowercase": true,
         "commit": "/src/{sha}"
+    },
+    {
+        "host": "gitgud.io",
+        "nested": true,
+        "lowercase": true,
+        "commit": "/-/tree/{sha}"
+    },
+    {
+        "host": "git.gay",
+        "nested": false,
+        "lowercase": true,
+        "commit": "/src/commit/{sha}"
     }
 ]
