@@ -5,3 +5,5 @@ Include `{{participationFile}}` and `game.conf` at the root. `screenshot.png` is
 The latest commit will be sent for review; Feedback and status can be checked here.
 
 {{!submission}}
+
+Supported hosts (contact administrator to add more): `{{supportedHosts}}`  
