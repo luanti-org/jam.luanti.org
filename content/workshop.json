@@ -78,7 +78,7 @@
     "licenseLabel": "License: {{license}}",
     "submission": {
         "repositoryLabel": "Public HTTPS repository URL",
-        "repositoryPlaceholder": "https://codeberg.org/you/your-game",
+        "repositoryPlaceholder": "https://example.com/you/your-game",
         "submit": "Submit your brew",
         "inspecting": "Inspecting...",
         "inspectionHelp": "Checks usually take seconds, though delays are possible. Keep this page open; you can explore the room while you wait.",
