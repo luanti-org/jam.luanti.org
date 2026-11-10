@@ -66,8 +66,6 @@
     "roomAlt": "A warm wooden workshop with a fireplace, shelves, and a cupboard.",
     "speechLabel": "Read the wizard's advice and jam rules",
     "closeLabel": "Close panel and return to the workshop",
-    "themesHeading": "Theme scraps (optional)",
-    "resourcesHeading": "Resource crates",
     "optionalTheme": "Optional theme",
     "mediaLabels": {
         "tool": "Tool",

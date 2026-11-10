@@ -1,12 +1,10 @@
 import {
-    ApiError,
-    getRepositoryStatus,
     ingredientCatalog,
     jam,
     listBrews,
-    submitBrew,
 } from "./sdk";
 import siteIcons from "./assets/icons";
+import { initSubmission } from "./submission";
 import { renderProse, renderWizard, renderWorkshop } from "./markdown" with { type: "macro" };
 import { eventDates, populateLabels, recentlyPublished, substitute } from "./presentation";
 
@@ -21,7 +19,10 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 const prose = await renderProse();
 
 for (const node of document.querySelectorAll<HTMLElement>("[data-prose]")) {
-    node.innerHTML = prose[node.dataset.prose as keyof typeof prose];
+    if (!node.hasAttribute("data-rendered")) {
+        node.innerHTML = prose[node.dataset.prose as keyof typeof prose];
+        node.setAttribute("data-rendered", "");
+    }
 }
 
 populateLabels(workshop, { engine: jam.engine, ...eventDates(jam) });
@@ -169,6 +170,12 @@ const mediaLabels = workshop.mediaLabels;
 
 for (const ingredient of ingredientCatalog) {
     const theme = ingredient.category === "Theme";
+    const container = document.getElementById(theme ? "theme-ingredients" : "resource-ingredients");
+
+    if (!container) {
+        continue;
+    }
+
     const row = document.createElement("article");
     const title = document.createElement("h4");
     row.className = `ingredient ${theme ? "paper" : "crate"}`;
@@ -240,7 +247,7 @@ for (const ingredient of ingredientCatalog) {
     }
 
     row.append(labels);
-    element(theme ? "theme-ingredients" : "resource-ingredients").append(row);
+    container.append(row);
 }
 
 // Production HTML already contains these links; development fills them from the same collection.
@@ -286,119 +293,12 @@ motionSwitch.addEventListener("change", () => {
 systemMotion.addEventListener("change", updateMotion);
 updateMotion();
 
-const submissionCopy = workshop.submission;
-const form = element<HTMLFormElement>("submit-form");
-const repository = element<HTMLInputElement>("repository");
-const submitButton = element<HTMLButtonElement>("submit-button");
-const checkButton = element<HTMLButtonElement>("refresh-status");
-let currentStatus: Awaited<ReturnType<typeof submitBrew>> | undefined;
-
-function submissionBusy(busy: boolean, inspecting = false) {
-    submitButton.disabled = busy;
-    checkButton.disabled = busy;
-    repository.disabled = busy;
-
-    if (busy) {
-        form.setAttribute("aria-busy", "true");
+initSubmission(element("submission-panel"), api, workshop.submission, () => {
+    if (panel.open && !element("submission-panel").hidden) {
+        refreshShelfAfterCauldron = true;
     } else {
-        form.removeAttribute("aria-busy");
-    }
-
-    submitButton.querySelector<HTMLElement>(".spinner")!.hidden = !inspecting;
-    element("submit-label").textContent = inspecting ? submissionCopy.inspecting : submissionCopy.submit;
-    element("inspection-help").hidden = !inspecting;
-}
-
-function showStatus(state: Awaited<ReturnType<typeof submitBrew>>, submitted = false) {
-    const link = document.createElement("a");
-    link.href = state.commitUrl;
-    link.textContent = state.commit.slice(0, 7);
-    link.title = state.commit;
-    const result = submissionCopy.statuses[state.status];
-    const feedback = state.reason ? `: "${state.reason}"` : ".";
-    element("status").replaceChildren(`${submissionCopy.commitLabel} `, link, ` ${result}${feedback}`);
-
-    const changed = currentStatus && (currentStatus.repository !== state.repository || currentStatus.commit !== state.commit
-        || currentStatus.status !== state.status || currentStatus.reason !== state.reason);
-
-    if (submitted || changed) {
-        if (panel.open && !element("submission-panel").hidden) {
-            refreshShelfAfterCauldron = true;
-        } else {
-            // Inspection/status requests can finish after the participant returns to the room.
-            void shelf(true);
-        }
-    }
-
-    currentStatus = state;
-}
-
-async function status() {
-    validateRepository();
-
-    if (checkButton.disabled || !form.reportValidity()) {
-        return;
-    }
-
-    submissionBusy(true);
-    element("status").textContent = submissionCopy.checking;
-
-    try {
-        const state = await getRepositoryStatus(api, repository.value);
-        repository.value = state.repository;
-        showStatus(state);
-    } catch (error) {
-        element("status").textContent = message(error);
-    } finally {
-        submissionBusy(false);
-    }
-}
-
-// This is presentation validation only; the server owns the repository host and namespace policy.
-function validateRepository() {
-    let webUrl = false;
-
-    try {
-        webUrl = ["http:", "https:"].includes(new URL(repository.value).protocol);
-    } catch {
-        // Required/type=url validation also explains empty or malformed input.
-    }
-
-    repository.setCustomValidity(repository.value && !webUrl ? submissionCopy.httpsError : "");
-}
-
-repository.addEventListener("input", () => {
-    validateRepository();
-    currentStatus = undefined;
-    element("status").textContent = "";
-});
-checkButton.addEventListener("click", () => void status());
-
-form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    validateRepository();
-
-    if (submitButton.disabled || !form.reportValidity()) {
-        return;
-    }
-
-    submissionBusy(true, true);
-    element("status").textContent = "";
-
-    try {
-        repository.value = repository.value.replace(/^http:\/\//i, "https://");
-        const result = await submitBrew(api, repository.value);
-        showStatus(result, true);
-
-        if (panel.open && !element("submission-panel").hidden) {
-            element("status").focus();
-        }
-    } catch (error) {
-        const template = error instanceof ApiError && error.status === 422
-            ? submissionCopy.inspectionFailure : submissionCopy.submitFailure;
-        element("status").textContent = substitute(template, { error: message(error) });
-    } finally {
-        submissionBusy(false);
+        // Submission requests can finish after the participant returns to the room.
+        void shelf(true);
     }
 });
 

@@ -45,6 +45,8 @@ See `.env.example` for defaults.
 
 Site content and configuration are in [`content/`](content/): event settings, Git host policies, quotas, UI text, dialogue, and Markdown prose. Frontend changes require rebuilding; most backend configuration changes require restarting the API.
 
+Panel Markdown places widgets with standalone paragraphs: `{{!submission}}` in `cauldron.md`, and `{{!themes}}` / `{{!resources}}` in `pantry.md`. Each widget may appear once in its document. The text guide renders pantry widgets as static resource lists.
+
 ## Deployment
 
 ### Frontend

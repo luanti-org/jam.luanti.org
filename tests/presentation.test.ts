@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import hosts from "../content/hosts.json";
-import { jam, submitBrew } from "../client/sdk";
+import { ingredientCatalog, jam, submitBrew } from "../client/sdk";
 import wizard from "../content/wizard.json";
 import workshop from "../content/workshop.json";
 import { renderMarkdown, renderPage, renderProse, renderWizard, renderWorkshop } from "../client/markdown";
@@ -135,6 +135,64 @@ test("wizard configuration is separate and validates timer durations", () => {
     } finally {
         wizard.speechDurationMs = original;
     }
+});
+
+test("Markdown widgets occupy whole paragraphs, preserve order and reject duplicate or inline controls", () => {
+    const widgets = { submission: '<form id="example-form"></form>' };
+    const html = renderMarkdown("Before.\n\n{{!submission}}\n\nAfter {{engine}}.", true, widgets);
+    expect(html).toContain('<p>Before.</p>\n<form id="example-form"></form>\n<p>After');
+    expect(html).not.toContain("<p><form");
+    expect(html).toContain(jam.engine);
+    expect(() => renderMarkdown("Text {{!submission}}.", true, widgets)).toThrow("own paragraph");
+    expect(() => renderMarkdown("{{!submission}}\n\n{{!submission}}", true, widgets)).toThrow("Duplicate widget");
+    expect(() => renderMarkdown("{{!unknownWidget}}", true, widgets)).toThrow("Unknown widget");
+    expect(() => renderMarkdown("{{submission}}", true, widgets)).toThrow("Unknown event value");
+    expect(() => renderMarkdown("{{!engine}}", true, widgets)).toThrow("Unknown widget");
+    expect(renderMarkdown("{{engine}}\n\n{{!engine}}", true, { engine: "<aside>Widget</aside>" }))
+        .toContain(`<p>${jam.engine}</p>\n<aside>Widget</aside>`);
+});
+
+test("widget examples stay literal in code while event values in code remain escaped", () => {
+    const source = "`{{!submission}}` and `{{engine}}`.\n\n```md\n{{!submission}}\n{{!unknownWidget}}\n```";
+    const html = renderMarkdown(source, true, { submission: "<form></form>" });
+    expect(html).toContain("<code>{{!submission}}</code>");
+    expect(html).toContain(`<code>${jam.engine}</code>`);
+    expect(html).toContain("{{!unknownWidget}}");
+    expect(html).not.toContain("<form");
+});
+
+test("composed widgets have resolved labels in static HTML and pantry widgets supply the script-free guide", async () => {
+    const copy = renderWorkshop();
+    const index = await renderPage(await Bun.file(new URL("../client/index.html", import.meta.url)).text(), "index");
+    let forms = 0;
+    let label = "";
+    let placeholder = "";
+
+    await new HTMLRewriter()
+        .on("#cauldron-content #submit-form", { element() { forms++; } })
+        .on("#submit-label", { text(chunk) { label += chunk.text; } })
+        .on("#repository", { element(element) { placeholder = element.getAttribute("placeholder")!; } })
+        .transform(new Response(index)).text();
+    expect(forms).toBe(1);
+    expect(label).toBe(copy.submission.submit);
+    expect(placeholder).toBe(copy.submission.repositoryPlaceholder);
+    expect(index).toContain(`aria-label="${copy.submission.repositoryLabel}"`);
+    expect(index).toContain('data-prose="cauldron" data-rendered');
+    expect(index).not.toContain('aria-describedby="cauldron-content"');
+    expect(index).not.toContain("{{");
+
+    const guide = await renderPage(await Bun.file(new URL("../client/guide.html", import.meta.url)).text(), "guide");
+    let entries = 0;
+    await new HTMLRewriter().on('[data-prose="pantry"] article h4', {
+        element() {
+            entries++;
+        },
+    })
+        .transform(new Response(guide)).text();
+    expect(entries).toBe(ingredientCatalog.length);
+    expect(guide.indexOf("Theme scraps (optional)")).toBeLessThan(guide.indexOf(ingredientCatalog[0].name));
+    expect(guide.indexOf("Resource crates")).toBeLessThan(guide.indexOf("Kenney game assets"));
+    expect(guide).not.toMatch(/<script\b|<form\b|\{\{/);
 });
 
 test("unsupported submission schemes fail locally before any transport", () => {

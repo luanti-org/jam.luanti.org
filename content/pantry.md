@@ -1,1 +1,9 @@
 A pinch of inspiration for your next game. Browse the resource crates and theme scraps, or brew entirely from scratch. Check individual licenses and keep required credits; mixed collections may include resources with different terms.
+
+### Theme scraps (optional)
+
+{{!themes}}
+
+### Resource crates
+
+{{!resources}}
