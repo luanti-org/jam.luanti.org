@@ -5,7 +5,7 @@ import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { commitSchema, submissionSchema } from "../shared/schemas";
+import { submissionReferenceSchema, submissionSchema } from "../shared/schemas";
 import { verifyRequest } from "../shared/signatures";
 import { clientIdentity, type Config, maxRequestBodyBytes } from "./config";
 import { Store } from "./storage";
@@ -20,8 +20,6 @@ const validationHook = (result: { success: boolean; error?: unknown }) => {
         throw result.error;
     }
 };
-
-const imageParams = z.strictObject({ id: z.uuid(), commit: commitSchema });
 
 /** The caller owns an injected store; production keeps its store for the process lifetime. */
 export function createApp({
@@ -166,15 +164,10 @@ export function createApp({
 
         return context.json(store.repositoryStatus(repository, config.jamId));
     });
-    app.get(
-        "/api/submissions/:id",
-        zValidator("param", z.strictObject({ id: z.uuid() }), validationHook),
-        (context) => context.json(store.status(context.req.valid("param").id, config.jamId)),
-    );
-    app.get("/api/brews/:id/images/:commit", zValidator("param", imageParams, validationHook), (context) => {
-        const { id, commit } = context.req.valid("param");
+    app.get("/api/brews/image", zValidator("query", submissionReferenceSchema, validationHook), (context) => {
+        const { repository, commit } = context.req.valid("query");
 
-        return imageResponse(store.image(id, commit, config.jamId));
+        return imageResponse(store.image(repository, commit, config.jamId));
     });
     app.post(
         "/api/admin",
@@ -183,9 +176,9 @@ export function createApp({
             const claims = await administrator(context.req.valid("json"));
 
             if (claims.action.operation === "admin.image") {
-                const { id, commit } = claims.action.args;
+                const { repository, commit } = claims.action.args;
 
-                return imageResponse(store.image(id, commit, config.jamId, true));
+                return imageResponse(store.image(repository, commit, config.jamId, true));
             }
 
             if (claims.action.operation === "admin.queue") {

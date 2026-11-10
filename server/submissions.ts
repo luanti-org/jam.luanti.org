@@ -17,7 +17,7 @@ const maxWorkerOutput = 512 * 1024 + 16384;
 
 /** Short-circuits inspection while still reaping the worker before releasing its queue slot. */
 class ExistingSubmission extends Error {
-    constructor(readonly receipt: ReturnType<Store["status"]>) {
+    constructor(readonly receipt: NonNullable<ReturnType<Store["submissionReceipt"]>>) {
         super("Repository commit already has a receipt");
     }
 }

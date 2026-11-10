@@ -295,7 +295,6 @@ let currentStatus: Awaited<ReturnType<typeof submitBrew>> | undefined;
 
 function repositoryLink(value?: string) {
     const url = new URL(location.href);
-    url.searchParams.delete("submission");
 
     if (value) {
         url.searchParams.set("repo", value);
@@ -331,7 +330,7 @@ function showStatus(state: Awaited<ReturnType<typeof submitBrew>>, submitted = f
     const feedback = state.reason ? `: "${state.reason}"` : ".";
     element("status").replaceChildren(`${submissionCopy.commitLabel} `, link, ` ${result}${feedback}`);
 
-    const changed = currentStatus && (currentStatus.id !== state.id
+    const changed = currentStatus && (currentStatus.repository !== state.repository || currentStatus.commit !== state.commit
         || currentStatus.status !== state.status || currentStatus.reason !== state.reason);
 
     if (submitted || changed) {
@@ -433,7 +432,7 @@ function updateShelfPresentation() {
         // Viewing clears the room badge for these publications until this tab is refreshed.
         // Card badges still identify recent games; a later approval can light the room badge again.
         for (const entry of shelfEntries) {
-            viewedPublications.add(`${entry.id}:${entry.publishedAt}`);
+            viewedPublications.add(JSON.stringify([entry.repository, entry.commit, entry.publishedAt]));
         }
 
         if (shelfLoaded) {
@@ -442,7 +441,7 @@ function updateShelfPresentation() {
     }
 
     const recent = shelfEntries.some((entry) => recentlyPublished(entry.publishedAt, now)
-        && !viewedPublications.has(`${entry.id}:${entry.publishedAt}`));
+        && !viewedPublications.has(JSON.stringify([entry.repository, entry.commit, entry.publishedAt])));
     element("shelf-new").hidden = !recent;
     element("shelf-new").setAttribute("title", workshop.shelf.newLabel);
     const hotspot = document.querySelector<HTMLButtonElement>(".brews")!;
@@ -496,7 +495,7 @@ async function shelf(afterChange = false) {
 
             if (entry.hasScreenshot) {
                 const image = document.createElement("img");
-                image.src = `${api}/api/brews/${entry.id}/images/${entry.commit}`;
+                image.src = `${api}/api/brews/image?${new URLSearchParams({ repository: entry.repository, commit: entry.commit })}`;
                 image.alt = entry.title;
                 image.loading = "lazy";
                 image.addEventListener("error", () => {

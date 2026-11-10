@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { HTTPException } from "hono/http-exception";
 import {
-    createIdentity, getAdminImage, getAdminQueue, getRepositoryStatus, getSubmissionStatus, jam, listBrews,
+    createIdentity, getAdminImage, getAdminQueue, getRepositoryStatus, jam, listBrews,
     moderateEntry, restoreIdentity, submitBrew,
 } from "../client/sdk";
 import workshop from "../content/workshop.json";
@@ -74,8 +74,25 @@ async function fixture(limits: Partial<typeof rateLimits> = {}) {
     };
 }
 
-function expectPurged(store: Store, id: string, status: string) {
-    expect(store.db.query("SELECT status, title, description, image FROM submissions WHERE id = ?").get(id))
+function reference(entry: { repository: string; commit: string }) {
+    return { repository: entry.repository, commit: entry.commit };
+}
+
+function referenceKey(entry: { repository: string; commit: string }) {
+    return JSON.stringify([entry.repository, entry.commit]);
+}
+
+async function recordedStatus(f: Awaited<ReturnType<typeof fixture>>, entry: { repository: string; commit: string }) {
+    const reviews = await getAdminQueue(f.config.audience, f.identity, f.options);
+    const row = reviews.find((row) => referenceKey(row) === referenceKey(entry))!;
+    const { repository, commit, commitUrl, submittedAt, status, reason } = row;
+
+    return { repository, commit, commitUrl, submittedAt, status, reason };
+}
+
+function expectPurged(store: Store, entry: { repository: string; commit: string }, status: string) {
+    expect(store.db.query('SELECT status, title, description, image FROM submissions WHERE repository = ? AND "commit" = ?')
+        .get(entry.repository, entry.commit))
         .toEqual({ status, title: null, description: null, image: null });
 }
 
@@ -84,7 +101,7 @@ test("repository status reads existing databases after the jam without inspectio
     const repository = "https://github.com/o/game";
     const now = Date.now();
     const first = f.store.recordSubmission(f.config.jamId, repository, snapshot(), now, "/tree/{sha}");
-    f.store.moderate({ id: first.id, revision: 0, operation: "approve" }, f.identity.publicKey, now, f.config.jamId);
+    f.store.moderate({ ...reference(first), revision: 0, operation: "approve" }, f.identity.publicKey, now, f.config.jamId);
     const second = f.store.recordSubmission(f.config.jamId, repository, snapshot(sha("b")), now, "/tree/{sha}");
     f.store.recordSubmission("another-jam", repository, snapshot(sha("f")), now + 1, "/tree/{sha}");
     const rows = f.store.db.query("SELECT * FROM submissions ORDER BY rowid").all();
@@ -97,6 +114,7 @@ test("repository status reads existing databases after the jam without inspectio
         const options = { fetch: ((input, init) => app.fetch(new Request(input, init))) as typeof fetch };
         const result = await getRepositoryStatus(f.config.audience, "http://www.github.com/O/GAME.git/", options);
         expect(result).toEqual({ ...second, repository });
+        expect(result).not.toHaveProperty("id");
         expect(result).not.toHaveProperty("title");
         expect(result).not.toHaveProperty("description");
         expect(result).not.toHaveProperty("hasScreenshot");
@@ -119,27 +137,27 @@ test("repository status follows replacement pending commits and retains the late
     const repository = "https://github.com/o/game";
     const now = Date.now();
     const first = f.store.recordSubmission(f.config.jamId, repository, snapshot(), now, "/tree/{sha}");
-    f.store.moderate({ id: first.id, revision: 0, operation: "approve" }, f.identity.publicKey, now, f.config.jamId);
+    f.store.moderate({ ...reference(first), revision: 0, operation: "approve" }, f.identity.publicKey, now, f.config.jamId);
     const second = f.store.recordSubmission(f.config.jamId, repository, snapshot(sha("b")), now, "/tree/{sha}");
     const third = f.store.recordSubmission(f.config.jamId, repository, snapshot(sha("c")), now, "/tree/{sha}");
-    expectPurged(f.store, second.id, "superseded");
+    expectPurged(f.store, second, "superseded");
     expect(await getRepositoryStatus(api, repository, f.options)).toEqual({ ...third, repository });
-    expect((await listBrews(api, f.options))[0].id).toBe(first.id);
+    expect(referenceKey((await listBrews(api, f.options))[0])).toBe(referenceKey(first));
 
-    f.store.moderate({ id: third.id, revision: 0, operation: "reject", reason: "Add credits" },
+    f.store.moderate({ ...reference(third), revision: 0, operation: "reject", reason: "Add credits" },
         f.identity.publicKey, now + 1, f.config.jamId);
     expect(await getRepositoryStatus(api, repository, f.options)).toMatchObject({
-        id: third.id, status: "rejected", reason: "Add credits",
+        ...reference(third), status: "rejected", reason: "Add credits",
     });
 
     // Reopening an older review makes it current even though its submission predates the rejection.
-    f.store.restore({ id: second.id, revision: 1, operation: "reinspect" }, snapshot(sha("b")),
+    f.store.restore({ ...reference(second), revision: 1, operation: "reinspect" }, snapshot(sha("b")),
         f.identity.publicKey, now + 2, f.config.jamId);
-    expect(await getRepositoryStatus(api, repository, f.options)).toMatchObject({ id: second.id, status: "pending" });
-    f.store.moderate({ id: second.id, revision: 2, operation: "reject", reason: "Still unsuitable" },
+    expect(await getRepositoryStatus(api, repository, f.options)).toMatchObject({ ...reference(second), status: "pending" });
+    f.store.moderate({ ...reference(second), revision: 2, operation: "reject", reason: "Still unsuitable" },
         f.identity.publicKey, now + 3, f.config.jamId);
     expect(await getRepositoryStatus(api, repository, f.options)).toMatchObject({
-        id: third.id, status: "rejected", reason: "Add credits",
+        ...reference(third), status: "rejected", reason: "Add credits",
     });
 
     // Reading status neither resolves a changed HEAD nor submits it.
@@ -154,53 +172,53 @@ test("each commit has a receipt; pending updates preserve publication and duplic
     const api = f.config.audience;
     const repository = "https://github.com/o/game";
     const duplicate = async (receipt: Awaited<ReturnType<typeof submitBrew>>, input = repository) => {
-        const rows = f.store.db.query("SELECT * FROM submissions ORDER BY id").all();
+        const rows = f.store.db.query('SELECT * FROM submissions ORDER BY repository, "commit"').all();
         const inspections = f.inspected.length;
-        const current = await getSubmissionStatus(api, receipt.id, f.options);
+        const current = await recordedStatus(f, receipt);
 
         // Existing identities return even if presentation cannot be inspected again.
         f.failInspection(new HTTPException(422, { message: "Presentation unavailable" }));
         expect(await submitBrew(api, input, f.options)).toEqual(current);
         f.failInspection();
         expect(f.inspected.length).toBe(inspections);
-        expect(f.store.db.query("SELECT * FROM submissions ORDER BY id").all()).toEqual(rows);
+        expect(f.store.db.query('SELECT * FROM submissions ORDER BY repository, "commit"').all()).toEqual(rows);
     };
 
     const first = await submitBrew(api, repository, f.options);
     expect(await listBrews(api, f.options)).toEqual([]);
-    expect(await getSubmissionStatus(api, first.id, f.options)).not.toHaveProperty("title");
-    expect((await f.app.request(`/api/brews/${first.id}/images/${first.commit}`)).status).toBe(404);
+    expect(await recordedStatus(f, first)).not.toHaveProperty("title");
+    expect((await f.app.request(`/api/brews/image?${new URLSearchParams(reference(first))}`)).status).toBe(404);
     await duplicate(first, repository.toUpperCase().replace("HTTPS", "https"));
-    await moderateEntry(api, f.identity, { id: first.id, revision: 0, operation: "approve" }, f.options);
+    await moderateEntry(api, f.identity, { ...reference(first), revision: 0, operation: "approve" }, f.options);
     await duplicate(first);
 
     f.setHead(sha("b"));
     const second = await submitBrew(api, repository, f.options);
-    expect(second.id).not.toBe(first.id);
-    expect((await listBrews(api, f.options))[0].id).toBe(first.id);
+    expect(referenceKey(second)).not.toBe(referenceKey(first));
+    expect(referenceKey((await listBrews(api, f.options))[0])).toBe(referenceKey(first));
     f.setHead(first.commit);
     await duplicate(first);
-    expect(f.store.status(second.id, f.config.jamId).status).toBe("pending");
+    expect(f.store.submissionReceipt(f.config.jamId, second.repository, second.commit)!.status).toBe("pending");
     f.setHead(second.commit);
-    await moderateEntry(api, f.identity, { id: second.id, revision: 0, operation: "reject", reason: "Public explanation" }, f.options);
-    expectPurged(f.store, second.id, "rejected");
-    await expect(getAdminImage(api, f.identity, second.id, second.commit, f.options)).rejects.toMatchObject({ status: 404 });
+    await moderateEntry(api, f.identity, { ...reference(second), revision: 0, operation: "reject", reason: "Public explanation" }, f.options);
+    expectPurged(f.store, second, "rejected");
+    await expect(getAdminImage(api, f.identity, second.repository, second.commit, f.options)).rejects.toMatchObject({ status: 404 });
     await duplicate(second);
-    expect((await listBrews(api, f.options))[0].id).toBe(first.id);
+    expect(referenceKey((await listBrews(api, f.options))[0])).toBe(referenceKey(first));
 
     f.setHead(sha("c"));
     const third = await submitBrew(api, repository, f.options);
-    await moderateEntry(api, f.identity, { id: third.id, revision: 0, operation: "approve" }, f.options);
-    expectPurged(f.store, first.id, "superseded");
-    expect((await listBrews(api, f.options)).map((entry) => entry.id)).toEqual([third.id]);
-    expect((await f.app.request(`/api/brews/${first.id}/images/${first.commit}`)).status).toBe(404);
+    await moderateEntry(api, f.identity, { ...reference(third), revision: 0, operation: "approve" }, f.options);
+    expectPurged(f.store, first, "superseded");
+    expect((await listBrews(api, f.options)).map((entry) => referenceKey(entry))).toEqual([referenceKey(third)]);
+    expect((await f.app.request(`/api/brews/image?${new URLSearchParams(reference(first))}`)).status).toBe(404);
     f.setHead(first.commit);
     await duplicate(first);
 
-    await moderateEntry(api, f.identity, { id: third.id, revision: 1, operation: "unpublish", reason: "Removed content" }, f.options);
-    expectPurged(f.store, third.id, "removed");
+    await moderateEntry(api, f.identity, { ...reference(third), revision: 1, operation: "unpublish", reason: "Removed content" }, f.options);
+    expectPurged(f.store, third, "removed");
     expect(await listBrews(api, f.options)).toEqual([]);
-    expect(await getSubmissionStatus(api, third.id, f.options)).toMatchObject({ status: "removed", reason: "Removed content" });
+    expect(await recordedStatus(f, third)).toMatchObject({ status: "removed", reason: "Removed content" });
     f.setHead(third.commit);
     await duplicate(third);
     const purged = await getAdminQueue(api, f.identity, f.options);
@@ -209,24 +227,24 @@ test("each commit has a receipt; pending updates preserve publication and duplic
     // Previously published and superseded identities can also return to review,
     // without restoring publication until a fresh approval.
     for (const receipt of [first, third]) {
-        const row = purged.find((entry) => entry.id === receipt.id)!;
-        await moderateEntry(api, f.identity, { id: row.id, revision: row.revision, operation: "reinspect" }, f.options);
+        const row = purged.find((entry) => referenceKey(entry) === referenceKey(receipt))!;
+        await moderateEntry(api, f.identity, { ...reference(row), revision: row.revision, operation: "reinspect" }, f.options);
         expect(f.inspected.at(-1)?.commit).toBe(receipt.commit);
-        expect((await getSubmissionStatus(api, row.id, f.options)).status).toBe("pending");
+        expect((await recordedStatus(f, row)).status).toBe("pending");
         expect(await listBrews(api, f.options)).toEqual([]);
-        await moderateEntry(api, f.identity, { id: row.id, revision: row.revision + 1, operation: "reject", reason: "Still unsuitable" }, f.options);
+        await moderateEntry(api, f.identity, { ...reference(row), revision: row.revision + 1, operation: "reject", reason: "Still unsuitable" }, f.options);
     }
 });
 
 test("public receipts retain the accepted commit link through review, purging, and duplicate submissions", async () => {
     const f = await fixture();
-    const api = f.config.audience;
     const jamId = f.config.jamId;
     const repository = "https://gitlab.com/group/subgroup/game";
     const receipt = f.store.recordSubmission(jamId, repository, snapshot(), Date.now(), "/-/tree/{sha}");
     const commitUrl = `${repository}/-/tree/${receipt.commit}`;
     const check = async (status: string) => {
-        const result = await getSubmissionStatus(api, receipt.id, f.options);
+        const result = status === "superseded" ? await recordedStatus(f, receipt)
+            : await getRepositoryStatus(f.config.audience, repository, f.options);
         expect(result).toMatchObject({ commit: receipt.commit, commitUrl, status });
         expect(result).not.toHaveProperty("title");
         expect(result).not.toHaveProperty("description");
@@ -238,15 +256,15 @@ test("public receipts retain the accepted commit link through review, purging, a
     };
 
     await check("pending");
-    f.store.moderate({ id: receipt.id, revision: 0, operation: "reject", reason: "Add credits" }, f.identity.publicKey, Date.now(), jamId);
+    f.store.moderate({ ...reference(receipt), revision: 0, operation: "reject", reason: "Add credits" }, f.identity.publicKey, Date.now(), jamId);
     await check("rejected");
-    f.store.restore({ id: receipt.id, revision: 1, operation: "reinspect" }, snapshot(), f.identity.publicKey, Date.now(), jamId);
+    f.store.restore({ ...reference(receipt), revision: 1, operation: "reinspect" }, snapshot(), f.identity.publicKey, Date.now(), jamId);
     await check("pending");
-    f.store.moderate({ id: receipt.id, revision: 2, operation: "approve" }, f.identity.publicKey, Date.now(), jamId);
+    f.store.moderate({ ...reference(receipt), revision: 2, operation: "approve" }, f.identity.publicKey, Date.now(), jamId);
     await check("approved");
-    f.store.moderate({ id: receipt.id, revision: 3, operation: "unpublish", reason: "Revise" }, f.identity.publicKey, Date.now(), jamId);
+    f.store.moderate({ ...reference(receipt), revision: 3, operation: "unpublish", reason: "Revise" }, f.identity.publicKey, Date.now(), jamId);
     await check("removed");
-    f.store.restore({ id: receipt.id, revision: 4, operation: "reinspect" }, snapshot(), f.identity.publicKey, Date.now(), jamId);
+    f.store.restore({ ...reference(receipt), revision: 4, operation: "reinspect" }, snapshot(), f.identity.publicKey, Date.now(), jamId);
     f.store.recordSubmission(jamId, repository, snapshot(sha("b")), Date.now(), "/-/tree/{sha}");
     await check("superseded");
 });
@@ -268,12 +286,12 @@ test("a duplicate committed by another connection during inspection preserves ev
     const other = new Store(f.directory);
     cleanups.push(() => other.close());
     const repository = "https://github.com/o/game";
-    let existing: ReturnType<Store["status"]> | undefined;
+    let existing: ReturnType<Store["recordSubmission"]> | undefined;
     const submissions = createSubmissions(f.config, f.store, {
         inspect: async (_info, _deadline, _endsAt, _signal, options) => {
             await options?.onCommit?.(sha("a"));
             existing = other.recordSubmission(f.config.jamId, repository, snapshot(), 1000, "/tree/{sha}");
-            other.moderate({ id: existing.id, revision: 0, operation: "reject", reason: "Already reviewed" },
+            other.moderate({ ...reference(existing), revision: 0, operation: "reject", reason: "Already reviewed" },
                 f.identity.publicKey, 2000, f.config.jamId);
             other.recordSubmission(f.config.jamId, repository, snapshot(sha("b")), 3000, "/tree/{sha}");
 
@@ -281,15 +299,15 @@ test("a duplicate committed by another connection during inspection preserves ev
         },
     });
     const receipt = await submissions.submit(repository, "ip");
-    expect(receipt).toEqual(other.status(existing!.id, f.config.jamId));
+    expect(receipt).toEqual(other.submissionReceipt(f.config.jamId, existing!.repository, existing!.commit)!);
     expect(receipt).toMatchObject({ status: "rejected", reason: "Already reviewed", submittedAt: new Date(1000).toISOString() });
-    const rows = other.db.query("SELECT * FROM submissions ORDER BY id").all();
+    const rows = other.db.query('SELECT * FROM submissions ORDER BY repository, "commit"').all();
     expect(rows).toHaveLength(2);
 
     // A stale final write is also idempotent while another commit remains pending.
     expect(f.store.recordSubmission(f.config.jamId, repository, snapshot(), 4000, "/ignored/{sha}"))
         .toEqual(receipt);
-    expect(other.db.query("SELECT * FROM submissions ORDER BY id").all()).toEqual(rows);
+    expect(other.db.query('SELECT * FROM submissions ORDER BY repository, "commit"').all()).toEqual(rows);
     expect(f.store.queue(f.config.jamId).find((row) => row.commit === sha("b")))
         .toMatchObject({ status: "pending", revision: 0 });
 });
@@ -299,45 +317,45 @@ test("screenshot-free entries can be reviewed, published, purged and reinspected
     const api = f.config.audience;
     const withoutImage = { ...snapshot(), screenshot: Buffer.alloc(0) };
     const receipt = f.store.recordSubmission(f.config.jamId, "https://github.com/o/g", withoutImage, 1000, "/tree/{sha}");
-    expect((await getAdminQueue(api, f.identity, f.options)).find((entry) => entry.id === receipt.id)?.hasScreenshot).toBe(false);
-    await expect(getAdminImage(api, f.identity, receipt.id, receipt.commit, f.options)).rejects.toMatchObject({ status: 404 });
-    expect(f.store.db.query("SELECT length(image) AS size FROM submissions WHERE id = ?").get(receipt.id))
+    expect((await getAdminQueue(api, f.identity, f.options)).find((entry) => referenceKey(entry) === referenceKey(receipt))?.hasScreenshot).toBe(false);
+    await expect(getAdminImage(api, f.identity, receipt.repository, receipt.commit, f.options)).rejects.toMatchObject({ status: 404 });
+    expect(f.store.db.query("SELECT length(image) AS size FROM submissions WHERE repository = ? AND \"commit\" = ?").get(receipt.repository, receipt.commit))
         .toEqual({ size: 0 });
 
-    await moderateEntry(api, f.identity, { id: receipt.id, revision: 0, operation: "approve" }, f.options);
-    expect((await listBrews(api, f.options))[0]).toMatchObject({ id: receipt.id, hasScreenshot: false });
-    expect((await f.app.request(`/api/brews/${receipt.id}/images/${receipt.commit}`)).status).toBe(404);
+    await moderateEntry(api, f.identity, { ...reference(receipt), revision: 0, operation: "approve" }, f.options);
+    expect((await listBrews(api, f.options))[0]).toMatchObject({ ...reference(receipt), hasScreenshot: false });
+    expect((await f.app.request(`/api/brews/image?${new URLSearchParams(reference(receipt))}`)).status).toBe(404);
 
     const withImage = f.store.recordSubmission(f.config.jamId, "https://github.com/o/other", snapshot(sha("b")), 2000, "/tree/{sha}");
-    expect((await getAdminQueue(api, f.identity, f.options)).find((entry) => entry.id === withImage.id))
+    expect((await getAdminQueue(api, f.identity, f.options)).find((entry) => referenceKey(entry) === referenceKey(withImage)))
         .toMatchObject({ hasScreenshot: true });
 
-    await moderateEntry(api, f.identity, { id: receipt.id, revision: 1, operation: "unpublish", reason: "Review again" }, f.options);
-    expectPurged(f.store, receipt.id, "removed");
-    expect((await getAdminQueue(api, f.identity, f.options)).find((entry) => entry.id === receipt.id)?.hasScreenshot).toBe(false);
+    await moderateEntry(api, f.identity, { ...reference(receipt), revision: 1, operation: "unpublish", reason: "Review again" }, f.options);
+    expectPurged(f.store, receipt, "removed");
+    expect((await getAdminQueue(api, f.identity, f.options)).find((entry) => referenceKey(entry) === referenceKey(receipt))?.hasScreenshot).toBe(false);
 
-    f.store.restore({ id: receipt.id, revision: 2, operation: "reinspect" }, withoutImage, f.identity.publicKey, 3000, f.config.jamId);
-    expect((await getAdminQueue(api, f.identity, f.options)).find((entry) => entry.id === receipt.id))
+    f.store.restore({ ...reference(receipt), revision: 2, operation: "reinspect" }, withoutImage, f.identity.publicKey, 3000, f.config.jamId);
+    expect((await getAdminQueue(api, f.identity, f.options)).find((entry) => referenceKey(entry) === referenceKey(receipt)))
         .toMatchObject({ status: "pending", hasScreenshot: false });
-    await moderateEntry(api, f.identity, { id: receipt.id, revision: 3, operation: "approve" }, f.options);
-    expect((await listBrews(api, f.options))[0]).toMatchObject({ id: receipt.id, hasScreenshot: false });
+    await moderateEntry(api, f.identity, { ...reference(receipt), revision: 3, operation: "approve" }, f.options);
+    expect((await listBrews(api, f.options))[0]).toMatchObject({ ...reference(receipt), hasScreenshot: false });
 });
 
 test("new pending submissions purge older reviews; stale or replayed approvals cannot publish them", async () => {
     const f = await fixture();
     const api = f.config.audience;
     const first = await submitBrew(api, "https://github.com/o/g", f.options);
-    const oldDecision = { id: first.id, revision: 0, operation: "approve" as const };
+    const oldDecision = { ...reference(first), revision: 0, operation: "approve" as const };
     f.setHead(sha("b"));
     const latest = await submitBrew(api, "https://github.com/o/g", f.options);
-    expectPurged(f.store, first.id, "superseded");
+    expectPurged(f.store, first, "superseded");
     const reviews = await getAdminQueue(api, f.identity, f.options);
     expect(reviews).toHaveLength(2);
-    expect(reviews.find((row) => row.id === first.id)?.status).toBe("superseded");
-    expect(reviews.find((row) => row.id === latest.id)?.status).toBe("pending");
+    expect(reviews.find((row) => referenceKey(row) === referenceKey(first))?.status).toBe("superseded");
+    expect(reviews.find((row) => referenceKey(row) === referenceKey(latest))?.status).toBe("pending");
     await expect(moderateEntry(api, f.identity, oldDecision, f.options)).rejects.toMatchObject({ status: 409 });
     await expect(moderateEntry(api, f.identity, { ...oldDecision, revision: 1 }, f.options)).rejects.toMatchObject({ status: 409 });
-    const decision = { id: latest.id, revision: 0, operation: "approve" as const };
+    const decision = { ...reference(latest), revision: 0, operation: "approve" as const };
     const responses = await Promise.allSettled([
         moderateEntry(api, f.identity, decision, f.options), moderateEntry(api, f.identity, decision, f.options),
     ]);
@@ -349,18 +367,18 @@ test("reinspection fetches the recorded SHA after jam close and requires another
     const f = await fixture();
     const api = f.config.audience;
     const original = await submitBrew(api, "https://github.com/o/g", f.options);
-    await moderateEntry(api, f.identity, { id: original.id, revision: 0, operation: "reject", reason: "Review later" }, f.options);
+    await moderateEntry(api, f.identity, { ...reference(original), revision: 0, operation: "reject", reason: "Review later" }, f.options);
     f.setHead(sha("b"));
     f.config.endsAt = 1;
-    const decision = { id: original.id, revision: 1, operation: "reinspect" as const };
+    const decision = { ...reference(original), revision: 1, operation: "reinspect" as const };
     await moderateEntry(api, f.identity, decision, f.options);
     expect(f.inspected.at(-1)?.commit).toBe(original.commit);
-    expect(await getSubmissionStatus(api, original.id, f.options)).toMatchObject({
-        id: original.id, commit: original.commit, status: "pending", submittedAt: original.submittedAt,
+    expect(await recordedStatus(f, original)).toMatchObject({
+        ...reference(original), status: "pending", submittedAt: original.submittedAt,
     });
     expect(await listBrews(api, f.options)).toEqual([]);
     await expect(moderateEntry(api, f.identity, decision, f.options)).rejects.toMatchObject({ status: 409 });
-    await moderateEntry(api, f.identity, { id: original.id, revision: 2, operation: "approve" }, f.options);
+    await moderateEntry(api, f.identity, { ...reference(original), revision: 2, operation: "approve" }, f.options);
     expect((await listBrews(api, f.options))[0].commit).toBe(original.commit);
 });
 
@@ -368,29 +386,29 @@ test("unavailable recorded commits leave purged rows unchanged; reinspection nev
     const f = await fixture();
     const api = f.config.audience;
     const original = await submitBrew(api, "https://github.com/o/g", f.options);
-    await moderateEntry(api, f.identity, { id: original.id, revision: 0, operation: "reject", reason: "Review later" }, f.options);
-    const before = f.store.db.query("SELECT * FROM submissions WHERE id = ?").get(original.id);
+    await moderateEntry(api, f.identity, { ...reference(original), revision: 0, operation: "reject", reason: "Review later" }, f.options);
+    const before = f.store.db.query("SELECT * FROM submissions WHERE repository = ? AND \"commit\" = ?").get(original.repository, original.commit);
     f.failInspection(new HTTPException(422, { message: "Recorded commit unavailable" }));
-    await expect(moderateEntry(api, f.identity, { id: original.id, revision: 1, operation: "reinspect" }, f.options))
+    await expect(moderateEntry(api, f.identity, { ...reference(original), revision: 1, operation: "reinspect" }, f.options))
         .rejects.toMatchObject({ status: 422 });
-    expect(f.store.db.query("SELECT * FROM submissions WHERE id = ?").get(original.id)).toEqual(before);
+    expect(f.store.db.query("SELECT * FROM submissions WHERE repository = ? AND \"commit\" = ?").get(original.repository, original.commit)).toEqual(before);
     f.failInspection();
     f.setHead(sha("b"));
     const pending = await submitBrew(api, "https://github.com/o/g", f.options);
     const inspected = f.inspected.length;
-    await expect(moderateEntry(api, f.identity, { id: original.id, revision: 1, operation: "reinspect" }, f.options))
+    await expect(moderateEntry(api, f.identity, { ...reference(original), revision: 1, operation: "reinspect" }, f.options))
         .rejects.toMatchObject({ status: 409 });
     expect(f.inspected.length).toBe(inspected);
-    expect(f.store.status(pending.id, f.config.jamId).status).toBe("pending");
-    expect(() => f.store.restore({ id: original.id, revision: 1, operation: "reinspect" }, snapshot(sha("c")), f.identity.publicKey, Date.now(), f.config.jamId))
+    expect(f.store.submissionReceipt(f.config.jamId, pending.repository, pending.commit)!.status).toBe("pending");
+    expect(() => f.store.restore({ ...reference(original), revision: 1, operation: "reinspect" }, snapshot(sha("c")), f.identity.publicKey, Date.now(), f.config.jamId))
         .toThrow();
 });
 
 test("reinspection rejects changed authorization or mismatched commits without restoring presentation", async () => {
     const f = await fixture();
     const receipt = f.store.recordSubmission(f.config.jamId, "https://github.com/o/g", snapshot(), 1000, "/tree/{sha}");
-    f.store.moderate({ id: receipt.id, revision: 0, operation: "reject", reason: "Review later" }, f.identity.publicKey, 2000, f.config.jamId);
-    const decision = { id: receipt.id, revision: 1, operation: "reinspect" as const };
+    f.store.moderate({ ...reference(receipt), revision: 0, operation: "reject", reason: "Review later" }, f.identity.publicKey, 2000, f.config.jamId);
+    const decision = { ...reference(receipt), revision: 1, operation: "reinspect" as const };
     expect(() => f.store.restore(decision, snapshot(sha("b")), f.identity.publicKey, 3000, f.config.jamId)).toThrow("recorded commit");
     let release!: () => void;
     const gate = new Promise<void>((resolve) => {
@@ -407,43 +425,43 @@ test("reinspection rejects changed authorization or mismatched commits without r
     writeFileSync(join(f.directory, "admins.json"), "[]");
     release();
     expect(await work).toMatchObject({ status: 403 });
-    expectPurged(f.store, receipt.id, "rejected");
+    expectPurged(f.store, receipt, "rejected");
 });
 
 test("publication order is stable across pending and rejected updates, with a bounded unpaginated shelf", async () => {
     const f = await fixture();
-    const ids: string[] = [];
+    const keys: string[] = [];
     const data = snapshot();
     const insert = f.store.db.query(`
-        INSERT INTO submissions (id, jam_id, repository, commit_path, "commit", status,
+        INSERT INTO submissions (jam_id, repository, commit_path, "commit", status,
             title, description, image, submitted_at, updated_at, revision)
-        VALUES (?, ?, ?, '/tree/{sha}', ?, 'approved', ?, ?, ?, ?, ?, 1)
+        VALUES (?, ?, '/tree/{sha}', ?, 'approved', ?, ?, ?, ?, ?, 1)
     `);
 
     // Seed collection size in one transaction; dedicated transition tests use normal Store mutations.
     f.store.db.transaction(() => {
         for (let index = 0; index < 105; index++) {
-            const id = crypto.randomUUID();
-            insert.run(id, f.config.jamId, `https://github.com/o/game${index}`, data.commit,
+            const repository = `https://github.com/o/game${index}`;
+            insert.run(f.config.jamId, repository, data.commit,
                 data.title, data.description, data.screenshot,
                 new Date(index).toISOString(), new Date(index + 1000).toISOString());
-            ids.unshift(id);
+            keys.unshift(referenceKey({ repository, commit: data.commit }));
         }
     })();
 
     const shelf = await listBrews(f.config.audience, f.options);
-    expect(shelf.map((entry) => entry.id)).toEqual(ids.slice(0, 100));
+    expect(shelf.map(referenceKey)).toEqual(keys.slice(0, 100));
     expect((await f.app.request("/api/brews?offset=20")).status).toBe(200);
     expect((await (await f.app.request("/api/brews?offset=20")).json()).length).toBe(100);
     const candidate = f.store.recordSubmission(f.config.jamId, "https://github.com/o/game104", snapshot(sha("b")), 10000, "/tree/{sha}");
     expect(await listBrews(f.config.audience, f.options)).toEqual(shelf);
-    f.store.moderate({ id: candidate.id, revision: 0, operation: "reject", reason: "No" }, f.identity.publicKey, 11000, f.config.jamId);
+    f.store.moderate({ ...reference(candidate), revision: 0, operation: "reject", reason: "No" }, f.identity.publicKey, 11000, f.config.jamId);
     expect(await listBrews(f.config.audience, f.options)).toEqual(shelf);
     const superseded = f.store.recordSubmission(f.config.jamId, "https://github.com/o/new", snapshot(), 12000, "/tree/{sha}");
     const pending = f.store.recordSubmission(f.config.jamId, "https://github.com/o/new", snapshot(sha("b")), 13000, "/tree/{sha}");
     const removed = f.store.recordSubmission(f.config.jamId, "https://github.com/o/removed", snapshot(), 14000, "/tree/{sha}");
-    f.store.moderate({ id: removed.id, revision: 0, operation: "approve" }, f.identity.publicKey, 15000, f.config.jamId);
-    f.store.moderate({ id: removed.id, revision: 1, operation: "unpublish", reason: "Removed" }, f.identity.publicKey, 16000, f.config.jamId);
+    f.store.moderate({ ...reference(removed), revision: 0, operation: "approve" }, f.identity.publicKey, 15000, f.config.jamId);
+    f.store.moderate({ ...reference(removed), revision: 1, operation: "unpublish", reason: "Removed" }, f.identity.publicKey, 16000, f.config.jamId);
     const token = await signRequest({ operation: "admin.queue" }, f.config.audience, f.identity);
     const response = await f.app.request("/api/admin", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(token),
@@ -454,7 +472,7 @@ test("publication order is stable across pending and rejected updates, with a bo
     expect(raw.every((row: object) => !Object.hasOwn(row, "image") && !Object.hasOwn(row, "screenshot"))).toBe(true);
 
     const reviews = await getAdminQueue(f.config.audience, f.identity, f.options);
-    expect(reviews.map((row) => row.id).sort()).toEqual([...ids, candidate.id, pending.id, superseded.id, removed.id].sort());
+    expect(reviews.map(referenceKey).sort()).toEqual([...keys, referenceKey(candidate), referenceKey(pending), referenceKey(superseded), referenceKey(removed)].sort());
     expect(new Set(reviews.map((row) => row.status))).toEqual(new Set(["pending", "approved", "rejected", "superseded", "removed"]));
     expect(reviews.filter((row) => ["rejected", "superseded", "removed"].includes(row.status))
         .every((row) => row.title === null && row.description === null && !row.hasScreenshot)).toBe(true);
@@ -463,11 +481,11 @@ test("publication order is stable across pending and rejected updates, with a bo
 test("SQLite enforces content/state and publication uniqueness independently of application checks", async () => {
     const f = await fixture();
     const first = f.store.recordSubmission(f.config.jamId, "https://github.com/o/g", snapshot(), 1000, "/tree/{sha}");
-    f.store.moderate({ id: first.id, revision: 0, operation: "approve" }, f.identity.publicKey, 2000, f.config.jamId);
+    f.store.moderate({ ...reference(first), revision: 0, operation: "approve" }, f.identity.publicKey, 2000, f.config.jamId);
     const next = f.store.recordSubmission(f.config.jamId, "https://github.com/o/g", snapshot(sha("b")), 3000, "/tree/{sha}");
-    expect(() => f.store.db.query("UPDATE submissions SET status = 'approved' WHERE id = ?").run(next.id)).toThrow();
-    expect(() => f.store.db.query("UPDATE submissions SET status = 'removed' WHERE id = ?").run(first.id)).toThrow();
-    expect(() => f.store.db.query("UPDATE submissions SET image = NULL WHERE id = ?").run(next.id)).toThrow();
+    expect(() => f.store.db.query("UPDATE submissions SET status = 'approved' WHERE repository = ? AND \"commit\" = ?").run(next.repository, next.commit)).toThrow();
+    expect(() => f.store.db.query("UPDATE submissions SET status = 'removed' WHERE repository = ? AND \"commit\" = ?").run(first.repository, first.commit)).toThrow();
+    expect(() => f.store.db.query("UPDATE submissions SET image = NULL WHERE repository = ? AND \"commit\" = ?").run(next.repository, next.commit)).toThrow();
     expect(f.store.db.query("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all())
         .toEqual([{ name: "budgets" }, { name: "submissions" }]);
 });
@@ -501,7 +519,7 @@ test("purging removes presentation bytes from the live database and truncates WA
     const path = join(f.directory, "jam.sqlite");
     const before = statSync(path).size;
     expect(readFileSync(path).includes(Buffer.from(marker))).toBe(true);
-    f.store.moderate({ id: receipt.id, revision: 0, operation: "reject", reason: "Removed" }, f.identity.publicKey, 2000, f.config.jamId);
+    f.store.moderate({ ...reference(receipt), revision: 0, operation: "reject", reason: "Removed" }, f.identity.publicKey, 2000, f.config.jamId);
     expect(readFileSync(path).includes(Buffer.from(marker))).toBe(false);
     expect(statSync(path).size).toBeLessThan(before);
     expect(statSync(`${path}-wal`).size).toBe(0);
@@ -510,7 +528,7 @@ test("purging removes presentation bytes from the live database and truncates WA
 test("full storage rolls back purging and reports capacity without losing the pending review or approval", async () => {
     const f = await fixture();
     const first = f.store.recordSubmission(f.config.jamId, "https://github.com/o/g", snapshot(), 1000, "/tree/{sha}");
-    f.store.moderate({ id: first.id, revision: 0, operation: "approve" }, f.identity.publicKey, 2000, f.config.jamId);
+    f.store.moderate({ ...reference(first), revision: 0, operation: "approve" }, f.identity.publicKey, 2000, f.config.jamId);
     const pending = f.store.recordSubmission(f.config.jamId, "https://github.com/o/g", snapshot(sha("b")), 3000, "/tree/{sha}");
     const pages = f.store.db.query<{ page_count: number }, []>("PRAGMA page_count").get()!.page_count;
     f.store.db.run(`PRAGMA max_page_count = ${pages + 2}`);
@@ -522,9 +540,9 @@ test("full storage rolls back purging and reports capacity without losing the pe
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ repository: "https://github.com/o/g" }),
     });
     expect(response.status).toBe(507);
-    expect(f.store.status(pending.id, f.config.jamId).status).toBe("pending");
-    expect(f.store.image(pending.id, pending.commit, f.config.jamId, true)).toEqual(snapshot(sha("b")).screenshot);
-    expect(f.store.listEntries(f.config.jamId)[0].id).toBe(first.id);
+    expect(f.store.submissionReceipt(f.config.jamId, pending.repository, pending.commit)!.status).toBe("pending");
+    expect(f.store.image(pending.repository, pending.commit, f.config.jamId, true)).toEqual(snapshot(sha("b")).screenshot);
+    expect(referenceKey(f.store.listEntries(f.config.jamId)[0])).toBe(referenceKey(first));
 });
 
 test("incompatible database schemas fail at startup", () => {
@@ -557,21 +575,21 @@ test("shelf publication time follows approval and reapproval, while pending upda
     const publishedAt = Date.parse("2026-11-10T00:00:00Z");
     const receipt = f.store.recordSubmission(jamId, repository, snapshot(), submittedAt, "/tree/{sha}");
     expect(await listBrews(f.config.audience, f.options)).toEqual([]);
-    f.store.moderate({ id: receipt.id, revision: 0, operation: "approve" }, f.identity.publicKey, publishedAt, jamId);
+    f.store.moderate({ ...reference(receipt), revision: 0, operation: "approve" }, f.identity.publicKey, publishedAt, jamId);
     const published = await listBrews(f.config.audience, f.options);
     expect(published[0].publishedAt).toBe(new Date(publishedAt).toISOString());
     expect(published[0].publishedAt).not.toBe(receipt.submittedAt);
 
     const update = f.store.recordSubmission(jamId, repository, snapshot(sha("b")), publishedAt + 1000, "/tree/{sha}");
     expect(await listBrews(f.config.audience, f.options)).toEqual(published);
-    f.store.moderate({ id: update.id, revision: 0, operation: "reject", reason: "Revise" }, f.identity.publicKey, publishedAt + 2000, jamId);
+    f.store.moderate({ ...reference(update), revision: 0, operation: "reject", reason: "Revise" }, f.identity.publicKey, publishedAt + 2000, jamId);
     expect(await listBrews(f.config.audience, f.options)).toEqual(published);
-    f.store.moderate({ id: receipt.id, revision: 1, operation: "unpublish", reason: "Revise" }, f.identity.publicKey, publishedAt + 3000, jamId);
+    f.store.moderate({ ...reference(receipt), revision: 1, operation: "unpublish", reason: "Revise" }, f.identity.publicKey, publishedAt + 3000, jamId);
     expect(await listBrews(f.config.audience, f.options)).toEqual([]);
 
-    f.store.restore({ id: receipt.id, revision: 2, operation: "reinspect" }, snapshot(), f.identity.publicKey, publishedAt + 4000, jamId);
+    f.store.restore({ ...reference(receipt), revision: 2, operation: "reinspect" }, snapshot(), f.identity.publicKey, publishedAt + 4000, jamId);
     expect(await listBrews(f.config.audience, f.options)).toEqual([]);
-    f.store.moderate({ id: receipt.id, revision: 3, operation: "approve" }, f.identity.publicKey, publishedAt + 5000, jamId);
+    f.store.moderate({ ...reference(receipt), revision: 3, operation: "approve" }, f.identity.publicKey, publishedAt + 5000, jamId);
     expect((await listBrews(f.config.audience, f.options))[0].publishedAt).toBe(new Date(publishedAt + 5000).toISOString());
 });
 
@@ -884,7 +902,7 @@ test("signed mutation arguments cannot be altered and concurrent decisions canno
         "/tree/{sha}",
     );
     const token = await signRequest(
-        { operation: "admin.moderate", args: { id: result.id, revision: 0, operation: "approve" } },
+        { operation: "admin.moderate", args: { ...reference(result), revision: 0, operation: "approve" } },
         f.config.audience,
         f.identity,
     );
@@ -906,25 +924,25 @@ test("signed mutation arguments cannot be altered and concurrent decisions canno
     expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
 });
 
-test("image requests sign their actual identifier and commit, and share SDK errors and cancellation", async () => {
+test("image requests sign their actual repository and commit, and share SDK errors and cancellation", async () => {
     const f = await fixture();
     const entry = await submitBrew(f.config.audience, "https://github.com/o/g", f.options);
     const fetchImage = (async (input, init) => {
         const claims = await verifyRequest(JSON.parse(init!.body as string), f.config.audience);
         expect(claims.action).toEqual({
             operation: "admin.image",
-            args: { id: entry.id, commit: entry.commit },
+            args: reference(entry),
         });
         expect(claims).not.toHaveProperty("jti");
 
         return f.options.fetch(input, init);
     }) as typeof fetch;
     expect(
-        (await getAdminImage(f.config.audience, f.identity, entry.id, entry.commit, { fetch: fetchImage }))
+        (await getAdminImage(f.config.audience, f.identity, entry.repository, entry.commit, { fetch: fetchImage }))
             .type,
     ).toBe("image/webp");
     await expect(
-        getAdminImage(f.config.audience, f.identity, entry.id, "f".repeat(40), f.options),
+        getAdminImage(f.config.audience, f.identity, entry.repository, "f".repeat(40), f.options),
     ).rejects.toMatchObject({ status: 404, message: "Image not found" });
 
     const controller = new AbortController();
@@ -939,7 +957,7 @@ test("image requests sign their actual identifier and commit, and share SDK erro
             }
         })) as typeof fetch;
     await expect(
-        getAdminImage(f.config.audience, f.identity, entry.id, entry.commit, {
+        getAdminImage(f.config.audience, f.identity, entry.repository, entry.commit, {
             fetch: waitingFetch,
             timeoutMs: 5,
             signal: controller.signal,
@@ -1153,7 +1171,7 @@ test.each(["ip", "global"])("exhausted %s budgets cannot queue submissions or ad
         },
     });
     const purged = f.store.recordSubmission(f.config.jamId, "https://github.com/o/purged", snapshot(), now, "/tree/{sha}");
-    f.store.moderate({ id: purged.id, revision: 0, operation: "reject", reason: "Not ready" }, f.identity.publicKey, now, f.config.jamId);
+    f.store.moderate({ ...reference(purged), revision: 0, operation: "reject", reason: "Not ready" }, f.identity.publicKey, now, f.config.jamId);
     const active = submissions.submit("https://github.com/o/active", "active");
 
     for (let index = 0; index < (scope === "ip" ? 20 : 99); index++) {
@@ -1170,7 +1188,7 @@ test.each(["ip", "global"])("exhausted %s budgets cannot queue submissions or ad
         }
 
         await expect(submissions.reinspect(
-            { id: purged.id, revision: 1, operation: "reinspect" }, f.identity.publicKey, "limited", AbortSignal.timeout(1000),
+            { ...reference(purged), revision: 1, operation: "reinspect" }, f.identity.publicKey, "limited", AbortSignal.timeout(1000),
         )).rejects.toMatchObject({ status: 429, message: "Inspection limit reached; try next hour" });
         expect(f.store.db.query("SELECT * FROM budgets ORDER BY key").all()).toEqual(budgets);
 
@@ -1646,21 +1664,21 @@ test("resource incidents return 422, preserve publication, and block administrat
     const api = f.config.audience;
     const repository = "https://github.com/o/game";
     const published = await submitBrew(api, repository, f.options);
-    await moderateEntry(api, f.identity, { id: published.id, revision: 0, operation: "approve" }, f.options);
+    await moderateEntry(api, f.identity, { ...reference(published), revision: 0, operation: "approve" }, f.options);
     const purged = f.store.recordSubmission(f.config.jamId, repository, snapshot(sha("c")), Date.now(), "/tree/{sha}");
-    f.store.moderate({ id: purged.id, revision: 0, operation: "reject", reason: "Revise" }, f.identity.publicKey, Date.now(), f.config.jamId);
+    f.store.moderate({ ...reference(purged), revision: 0, operation: "reject", reason: "Revise" }, f.identity.publicKey, Date.now(), f.config.jamId);
     f.setHead(sha("b"));
     f.failInspection(new InspectionLimitError("resource"));
     await expect(submitBrew(api, "http://www.github.com/O/GAME.git/", f.options)).rejects.toMatchObject({
         status: 422, message: "Inspection exceeded its resource limits",
     });
-    expect((await listBrews(api, f.options)).map((entry) => entry.id)).toEqual([published.id]);
+    expect((await listBrews(api, f.options)).map((entry) => referenceKey(entry))).toEqual([referenceKey(published)]);
     const inspections = f.inspected.length;
     const freshIp = { fetch: ((input, init) => f.app.fetch(new Request(input, init), { ip: "fresh" })) as typeof fetch };
-    await expect(moderateEntry(api, f.identity, { id: purged.id, revision: 1, operation: "reinspect" }, freshIp))
+    await expect(moderateEntry(api, f.identity, { ...reference(purged), revision: 1, operation: "reinspect" }, freshIp))
         .rejects.toMatchObject({ status: 429 });
     expect(f.inspected).toHaveLength(inspections);
-    expect(f.store.queue(f.config.jamId).find((row) => row.id === purged.id)).toMatchObject({ status: "rejected", revision: 1 });
+    expect(f.store.queue(f.config.jamId).find((row) => referenceKey(row) === referenceKey(purged))).toMatchObject({ status: "rejected", revision: 1 });
 });
 
 test("early participant cancellation does not count as a resource violation or timeout", async () => {

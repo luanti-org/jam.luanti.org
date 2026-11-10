@@ -34,12 +34,11 @@ export const ingredientCatalogSchema = z.array(
 
 export const submissionSchema = z.strictObject({ repository: text(2048) });
 
+export const submissionReferenceSchema = z.strictObject({ repository: httpsUrl, commit: commitSchema });
+
 // Public presentation is approval-only. Status links survive content purging and contain no
 // presentation; administrator reviews may contain null presentation for purged submissions.
-export const entrySchema = z.strictObject({
-    id: z.uuid(),
-    repository: httpsUrl,
-    commit: commitSchema,
+export const entrySchema = submissionReferenceSchema.extend({
     title: text(200),
     description: text(2000),
     commitUrl: httpsUrl,
@@ -62,28 +61,22 @@ export const submissionStatusSchema = z.enum(["pending", "approved", "rejected",
 
 export type SubmissionStatus = z.infer<typeof submissionStatusSchema>;
 
-export const statusSchema = z.strictObject({
-    id: z.uuid(),
-    commit: commitSchema,
+export const statusSchema = submissionReferenceSchema.extend({
     commitUrl: httpsUrl,
     submittedAt: z.iso.datetime(),
     status: submissionStatusSchema,
     reason: z.string().max(2000).nullable(),
 });
 
-export const repositoryStatusSchema = statusSchema.extend({ repository: httpsUrl });
-
 export const reviewSchema = statusSchema.extend({
-    repository: httpsUrl,
     title: text(200).nullable(),
     description: text(2000).nullable(),
     hasScreenshot: z.boolean(),
     revision: z.number().int().nonnegative(),
 });
 
-export const moderationSchema = z
-    .strictObject({
-        id: z.uuid(),
+export const moderationSchema = submissionReferenceSchema
+    .extend({
         revision: z.number().int().nonnegative(),
         operation: z.enum(["approve", "reject", "unpublish", "reinspect"]),
         reason: text(2000).optional(),
@@ -101,7 +94,7 @@ export const actionSchema = z.discriminatedUnion("operation", [
     z.strictObject({ operation: z.literal("admin.moderate"), args: moderationSchema }),
     z.strictObject({
         operation: z.literal("admin.image"),
-        args: z.strictObject({ id: z.uuid(), commit: commitSchema }),
+        args: submissionReferenceSchema,
     }),
 ]);
 

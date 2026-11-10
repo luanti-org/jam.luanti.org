@@ -147,7 +147,8 @@ async function refresh() {
             const group = statusOrder[a.status] - statusOrder[b.status];
             const time = a.submittedAt.localeCompare(b.submittedAt);
 
-            return group || (a.status === "pending" ? time : -time) || a.id.localeCompare(b.id);
+            return group || (a.status === "pending" ? time : -time)
+                || a.repository.localeCompare(b.repository) || a.commit.localeCompare(b.commit);
         });
 
         for (const entry of entries) {
@@ -225,7 +226,7 @@ async function refresh() {
                     }
 
                     imageRequested = true;
-                    void getAdminImage(api, key, entry.id, entry.commit, { signal: request.signal })
+                    void getAdminImage(api, key, entry.repository, entry.commit, { signal: request.signal })
                         .then((blob) => {
                             if (request.signal.aborted) {
                                 return;
@@ -295,7 +296,8 @@ async function refresh() {
                             api,
                             key,
                             {
-                                id: entry.id,
+                                repository: entry.repository,
+                                commit: entry.commit,
                                 revision: entry.revision,
                                 operation,
                                 ...(needsReason ? { reason: reason.value.trim() } : {}),

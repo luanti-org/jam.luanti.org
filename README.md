@@ -61,6 +61,14 @@ The [Pages workflow](.github/workflows/pages.yml) builds and deploys automatical
 
 Run on Linux as an unprivileged service user, with private persistent storage and an HTTPS reverse proxy.
 
+For an existing schema v1 database, stop the API, back up the database, and run the one-time conversion before starting the updated API:
+
+```sh
+sqlite3 -bail /path/to/data/jam.sqlite < scripts/migrate-v1-to-v2.sql
+```
+
+The SQL transaction preserves submissions, screenshots, and review state. The application checks the schema version and does not convert databases automatically. Databases already on schema v2 need no conversion.
+
 ```sh
 bun ci
 bun start

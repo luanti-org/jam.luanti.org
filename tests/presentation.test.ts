@@ -152,16 +152,16 @@ test("unsupported submission schemes fail locally before any transport", () => {
 });
 
 test("the SDK upgrades HTTP repository input before transport and leaves host policy to the server", async () => {
-    const id = crypto.randomUUID();
+    const repository = "https://github.com/o/g";
     let calls = 0;
     const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
         calls++;
         expect(String(input)).toBe("https://api.example.org/api/brews/submit");
         expect(JSON.parse(String(init?.body))).toEqual({ repository: "https://www.github.com/O/G.git" });
 
-        return Response.json({ id, commit: "a".repeat(40), commitUrl: "https://github.com/o/g/tree/" + "a".repeat(40),
+        return Response.json({ repository, commit: "a".repeat(40), commitUrl: "https://github.com/o/g/tree/" + "a".repeat(40),
             submittedAt: new Date().toISOString(), status: "pending", reason: null });
     }) as typeof fetch;
-    expect((await submitBrew("https://api.example.org", "http://www.github.com/O/G.git", { fetch: fetcher })).id).toBe(id);
+    expect((await submitBrew("https://api.example.org", "http://www.github.com/O/G.git", { fetch: fetcher })).repository).toBe(repository);
     expect(calls).toBe(1);
 });

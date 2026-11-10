@@ -20,7 +20,7 @@ type Receipt = z.infer<typeof statusSchema>;
 
 type Review = z.infer<typeof reviewSchema>;
 
-const schemaVersion = 1;
+const schemaVersion = 2;
 const maxDatabaseBytes = 256 * 1024 ** 2;
 const maxIncidentLogBytes = 1024 * 1024;
 const incidentSalt = randomBytes(32);
@@ -85,7 +85,6 @@ export class Store {
 
             this.db.transaction(() => this.db.run(`
                 CREATE TABLE IF NOT EXISTS submissions (
-                    id TEXT PRIMARY KEY,
                     jam_id TEXT NOT NULL,
                     repository TEXT NOT NULL,
                     commit_path TEXT NOT NULL,
@@ -99,7 +98,7 @@ export class Store {
                     moderator TEXT,
                     reason TEXT,
                     revision INTEGER NOT NULL DEFAULT 0 CHECK(revision >= 0),
-                    UNIQUE(jam_id, repository, "commit"),
+                    PRIMARY KEY(jam_id, repository, "commit"),
                     CHECK (
                         (status IN ('pending', 'approved') AND title IS NOT NULL
                             AND description IS NOT NULL AND image IS NOT NULL)
@@ -258,7 +257,7 @@ export class Store {
 
     submissionReceipt(jamId: string, repository: string, commit: string) {
         return this.db.query<Receipt, [string, string, string]>(`
-            SELECT id, "commit", submitted_at AS submittedAt, status, reason,
+            SELECT repository, "commit", submitted_at AS submittedAt, status, reason,
                 repository || replace(commit_path, '{sha}', "commit") AS commitUrl
             FROM submissions WHERE jam_id = ? AND repository = ? AND "commit" = ?
         `).get(jamId, repository, commit);
@@ -282,41 +281,25 @@ export class Store {
                     updated_at = ?, moderator = NULL, reason = NULL, revision = revision + 1
                 WHERE jam_id = ? AND repository = ? AND status = 'pending'
             `).run(at, jamId, repository);
-            const id = crypto.randomUUID();
             this.db.query(`
                 INSERT INTO submissions (
-                    id, jam_id, repository, commit_path, "commit", status,
+                    jam_id, repository, commit_path, "commit", status,
                     title, description, image, submitted_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)
-            `).run(id, jamId, repository, commitPath, snapshot.commit,
+                ) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)
+            `).run(jamId, repository, commitPath, snapshot.commit,
                 snapshot.title, snapshot.description, snapshot.screenshot, at, at);
 
-            return this.status(id, jamId);
+            return this.submissionReceipt(jamId, repository, snapshot.commit)!;
         }).immediate();
         this.checkpoint();
 
         return receipt;
     }
 
-    /** Public progress survives purging; an identifier never grants access to unapproved presentation. */
-    status(id: string, jamId: string) {
-        const row = this.db.query<Receipt, [string, string]>(`
-            SELECT id, "commit", submitted_at AS submittedAt, status, reason,
-                repository || replace(commit_path, '{sha}', "commit") AS commitUrl
-            FROM submissions WHERE id = ? AND jam_id = ?
-        `).get(id, jamId);
-
-        if (!row) {
-            throw new HTTPException(404, { message: "Submission not found" });
-        }
-
-        return row;
-    }
-
     /** Read existing rows only. Pending work takes precedence over the latest recorded submission. */
     repositoryStatus(repository: string, jamId: string) {
-        const row = this.db.query<Receipt & { repository: string }, [string, string]>(`
-            SELECT id, repository, "commit", submitted_at AS submittedAt, status, reason,
+        const row = this.db.query<Receipt, [string, string]>(`
+            SELECT repository, "commit", submitted_at AS submittedAt, status, reason,
                 repository || replace(commit_path, '{sha}', "commit") AS commitUrl
             FROM submissions WHERE jam_id = ? AND repository = ?
             ORDER BY (status = 'pending') DESC, submitted_at DESC, rowid DESC LIMIT 1
@@ -332,18 +315,18 @@ export class Store {
     listEntries(jamId: string) {
         // An approved row's updated_at is its approval time; pending updates have separate rows.
         return this.db.query<Omit<Entry, "hasScreenshot"> & { hasScreenshot: number }, [string, number]>(`
-            SELECT id, repository, "commit", title, description,
+            SELECT repository, "commit", title, description,
                 repository || replace(commit_path, '{sha}', "commit") AS commitUrl,
                 length(image) > 0 AS hasScreenshot, updated_at AS publishedAt
             FROM submissions WHERE jam_id = ? AND status = 'approved'
-            ORDER BY updated_at DESC, id LIMIT ?
+            ORDER BY updated_at DESC, repository, "commit" LIMIT ?
         `).all(jamId, shelfLimit).map((row) => ({ ...row, hasScreenshot: row.hasScreenshot === 1 }));
     }
 
     /** Return every administrative record; sorting belongs to the client. */
     queue(jamId: string) {
         return this.db.query<Omit<Review, "hasScreenshot"> & { hasScreenshot: number }, [string]>(`
-            SELECT id, repository, "commit", title, description, status, reason, revision,
+            SELECT repository, "commit", title, description, status, reason, revision,
                 submitted_at AS submittedAt,
                 repository || replace(commit_path, '{sha}', "commit") AS commitUrl,
                 coalesce(length(image), 0) > 0 AS hasScreenshot
@@ -352,11 +335,11 @@ export class Store {
     }
 
     /** Pending images require signed administrator authorization. Purged images are unavailable to everyone. */
-    image(id: string, commit: string, jamId: string, admin = false) {
+    image(repository: string, commit: string, jamId: string, admin = false) {
         const row = this.db.query<{ image: Uint8Array }, [string, string, string]>(`
-            SELECT image FROM submissions WHERE id = ? AND "commit" = ? AND jam_id = ?
+            SELECT image FROM submissions WHERE repository = ? AND "commit" = ? AND jam_id = ?
                 AND status ${admin ? "IN ('pending', 'approved')" : "= 'approved'"}
-        `).get(id, commit, jamId);
+        `).get(repository, commit, jamId);
 
         if (!row || row.image.length === 0) {
             throw new HTTPException(404, { message: "Image not found" });
@@ -370,16 +353,16 @@ export class Store {
      * displace an existing pending review; check again after Git work to detect concurrent changes.
      */
     reinspectionTarget(decision: ModerationDecision, jamId: string) {
-        const row = this.db.query<{ repository: string; commit: string }, [string, string, number]>(`
+        const row = this.db.query<{ repository: string; commit: string }, [string, string, string, number]>(`
             SELECT repository, "commit" FROM submissions AS target
-            WHERE id = ? AND jam_id = ? AND revision = ?
+            WHERE repository = ? AND "commit" = ? AND jam_id = ? AND revision = ?
                 AND status IN ('rejected', 'superseded', 'removed')
                 AND NOT EXISTS (
                     SELECT 1 FROM submissions AS pending
                     WHERE pending.jam_id = target.jam_id AND pending.repository = target.repository
                         AND pending.status = 'pending'
                 )
-        `).get(decision.id, jamId, decision.revision);
+        `).get(decision.repository, decision.commit, jamId, decision.revision);
 
         if (!row) {
             throw new HTTPException(409, { message: "Submission changed or another review is pending; refresh first" });
@@ -400,9 +383,9 @@ export class Store {
             this.db.query(`
                 UPDATE submissions SET status = 'pending', title = ?, description = ?, image = ?,
                     updated_at = ?, moderator = ?, reason = NULL, revision = revision + 1
-                WHERE id = ? AND jam_id = ? AND revision = ?
+                WHERE repository = ? AND "commit" = ? AND jam_id = ? AND revision = ?
             `).run(snapshot.title, snapshot.description, snapshot.screenshot,
-                new Date(now).toISOString(), moderator, decision.id, jamId, decision.revision);
+                new Date(now).toISOString(), moderator, decision.repository, decision.commit, jamId, decision.revision);
 
             return { ok: true as const };
         }).immediate();
@@ -416,9 +399,10 @@ export class Store {
 
         this.db.transaction(() => {
             const expected = decision.operation === "unpublish" ? "approved" : "pending";
-            const target = this.db.query<{ repository: string }, [string, string, number, string]>(`
-                SELECT repository FROM submissions WHERE id = ? AND jam_id = ? AND revision = ? AND status = ?
-            `).get(decision.id, jamId, decision.revision, expected);
+            const target = this.db.query<{ repository: string }, [string, string, string, number, string]>(`
+                SELECT repository FROM submissions
+                WHERE repository = ? AND "commit" = ? AND jam_id = ? AND revision = ? AND status = ?
+            `).get(decision.repository, decision.commit, jamId, decision.revision, expected);
 
             if (!target) {
                 throw new HTTPException(409, { message: "Submission changed or operation unavailable; refresh first" });
@@ -440,9 +424,9 @@ export class Store {
                 : "status = $status, title = NULL, description = NULL, image = NULL, reason = $reason";
             this.db.query(`
                 UPDATE submissions SET ${changes}, updated_at = $at, moderator = $actor, revision = revision + 1
-                WHERE id = $id AND jam_id = $jam AND revision = $revision
+                WHERE repository = $repository AND "commit" = $commit AND jam_id = $jam AND revision = $revision
             `).run({
-                at, actor: moderator, id: decision.id, jam: jamId, revision: decision.revision,
+                at, actor: moderator, repository: decision.repository, commit: decision.commit, jam: jamId, revision: decision.revision,
                 ...(decision.operation !== "approve" ? {
                     status: decision.operation === "reject" ? "rejected" : "removed", reason: decision.reason!,
                 } : {}),

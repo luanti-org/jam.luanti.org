@@ -20,7 +20,6 @@ import {
     type ModerationDecision,
     reviewSchema,
     statusSchema,
-    repositoryStatusSchema,
     submissionSchema,
     shelfLimit,
 } from "../shared/schemas";
@@ -87,7 +86,7 @@ export function submitBrew(apiUrl: string, repository: string, options: CallOpti
 
 /**
  * Approved games, newest approval first; publishedAt is the approval time in UTC.
- * Fetch /api/brews/{id}/images/{commit} only when hasScreenshot is true.
+ * Fetch /api/brews/image?repository=...&commit=... only when hasScreenshot is true.
  */
 export function listBrews(apiUrl: string, options?: CallOptions) {
     return request(
@@ -99,15 +98,11 @@ export function listBrews(apiUrl: string, options?: CallOptions) {
     );
 }
 
-export function getSubmissionStatus(apiUrl: string, id: string, options?: CallOptions) {
-    return request(apiUrl, `/submissions/${z.uuid().parse(id)}`, undefined, statusSchema, options);
-}
-
 /** Read recorded status without inspecting Git, preferring pending work over the latest submission. */
 export function getRepositoryStatus(apiUrl: string, repository: string, options?: CallOptions) {
     const query = new URLSearchParams(submissionSchema.parse({ repository }));
 
-    return request(apiUrl, `/submissions?${query}`, undefined, repositoryStatusSchema, options);
+    return request(apiUrl, `/submissions?${query}`, undefined, statusSchema, options);
 }
 
 async function adminRequest<T>(
@@ -162,14 +157,14 @@ export function moderateEntry(
 export function getAdminImage(
     apiUrl: string,
     identity: Identity,
-    id: string,
+    repository: string,
     commit: string,
     options: CallOptions = {},
 ) {
     return adminRequest(
         apiUrl,
         identity,
-        { operation: "admin.image", args: { id, commit } },
+        { operation: "admin.image", args: { repository, commit } },
         async (response) => {
             if (response.headers.get("Content-Type") !== "image/webp") {
                 throw new Error("Expected a WebP review image");
