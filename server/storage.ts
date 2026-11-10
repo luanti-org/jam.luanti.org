@@ -296,12 +296,12 @@ export class Store {
         return receipt;
     }
 
-    /** Read existing rows only. Pending work takes precedence over the latest recorded submission. */
+    /** Pending work takes precedence over the latest submission that has not been superseded. */
     repositoryStatus(repository: string, jamId: string) {
         const row = this.db.query<Receipt, [string, string]>(`
             SELECT repository, "commit", submitted_at AS submittedAt, status, reason,
                 repository || replace(commit_path, '{sha}', "commit") AS commitUrl
-            FROM submissions WHERE jam_id = ? AND repository = ?
+            FROM submissions WHERE jam_id = ? AND repository = ? AND status != 'superseded'
             ORDER BY (status = 'pending') DESC, submitted_at DESC, rowid DESC LIMIT 1
         `).get(jamId, repository);
 

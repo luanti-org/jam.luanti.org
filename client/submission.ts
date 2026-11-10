@@ -139,7 +139,10 @@ export function initSubmission(root: HTMLElement, api: string, submissionCopy: t
         try {
             repository.value = repository.value.replace(/^http:\/\//i, "https://");
             const result = await submitBrew(api, repository.value);
-            showStatus(result, true);
+
+            // A duplicate can return a historical receipt; show the repository's current submission instead.
+            const current = result.status === "superseded" ? await getRepositoryStatus(api, result.repository) : result;
+            showStatus(current, true);
 
             if (!root.hidden && root.closest("dialog")?.open) {
                 element("status").focus();

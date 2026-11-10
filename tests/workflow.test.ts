@@ -165,6 +165,16 @@ test("repository status follows replacement pending commits and retains the late
     expect(await getRepositoryStatus(api, repository, f.options)).toMatchObject({ commit: third.commit });
     expect(f.inspected).toEqual([]);
     expect(f.store.queue(f.config.jamId)).toHaveLength(3);
+
+    // Reapproving an older commit replaces the newer publication. Its superseded row must not win lookup.
+    f.store.restore({ ...reference(third), revision: 1, operation: "reinspect" }, snapshot(sha("c")),
+        f.identity.publicKey, now + 4, f.config.jamId);
+    f.store.moderate({ ...reference(third), revision: 2, operation: "approve" }, f.identity.publicKey, now + 5, f.config.jamId);
+    f.store.restore({ ...reference(second), revision: 3, operation: "reinspect" }, snapshot(sha("b")),
+        f.identity.publicKey, now + 6, f.config.jamId);
+    f.store.moderate({ ...reference(second), revision: 4, operation: "approve" }, f.identity.publicKey, now + 7, f.config.jamId);
+    expectPurged(f.store, third, "superseded");
+    expect(await getRepositoryStatus(api, repository, f.options)).toMatchObject({ ...reference(second), status: "approved" });
 });
 
 test("each commit has a receipt; pending updates preserve publication and duplicates return every existing state", async () => {
