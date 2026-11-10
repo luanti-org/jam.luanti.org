@@ -79,15 +79,14 @@
     "submission": {
         "repositoryLabel": "Public HTTPS repository URL",
         "repositoryPlaceholder": "https://example.com/you/your-game",
-        "submit": "Submit your brew",
+        "submit": "Submit",
         "inspecting": "Inspecting...",
         "inspectionHelp": "Checks usually take seconds, though delays are possible. Keep this page open; you can explore the room while you wait.",
         "httpsError": "Use an HTTP or HTTPS repository URL. It will be submitted over HTTPS.",
         "inspectionFailure": "Inspection failed: {{error}}",
         "submitFailure": "Submission could not be completed: {{error}}",
         "checking": "Checking submission...",
-        "refresh": "Refresh",
-        "another": "Submit another game",
+        "refresh": "Check status",
         "statuses": {
             "pending": "awaiting review",
             "approved": "approved and published",
@@ -95,10 +94,7 @@
             "superseded": "replaced by a newer submission",
             "removed": "unpublished"
         },
-        "commitLabel": "Commit",
-        "copyLink": "Copy status link",
-        "linkCopied": "Status link copied.",
-        "copyFailure": "Could not copy the status link. Copy the URL from your address bar."
+        "commitLabel": "Commit"
     },
     "shelf": {
         "refresh": "Refresh shelf",

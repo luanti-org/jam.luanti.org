@@ -71,6 +71,8 @@ export const statusSchema = z.strictObject({
     reason: z.string().max(2000).nullable(),
 });
 
+export const repositoryStatusSchema = statusSchema.extend({ repository: httpsUrl });
+
 export const reviewSchema = statusSchema.extend({
     repository: httpsUrl,
     title: text(200).nullable(),

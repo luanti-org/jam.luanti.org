@@ -587,28 +587,31 @@ input[type="url"] {
     font-style: italic;
 }
 
-#status,
-#submit-result {
+#status {
+    flex: 1 1 14rem;
+    min-width: 0;
+    margin: 0;
     overflow-wrap: anywhere;
 }
 
-.status-actions,
+.submission-actions,
 .panel-actions {
     display: flex;
     align-items: center;
     gap: 0.4rem;
 }
 
-.status-actions {
+.submission-actions {
     flex-wrap: wrap;
 }
 
-.status-actions button {
+.submission-actions button {
+    flex: none;
     padding: 0.3rem 0.5rem;
     font-size: 0.875rem;
 }
 
-#status-action-result:empty {
+#status:empty {
     display: none;
 }
 

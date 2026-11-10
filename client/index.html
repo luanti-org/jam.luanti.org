@@ -157,56 +157,39 @@
                             <div id="resource-ingredients" class="ingredient-shelf"></div>
                         </section>
                         <section id="submission-panel" data-theme="iron" hidden>
-                            <div id="submission-entry">
-                                <div id="cauldron-content" data-prose="cauldron"></div>
-                                <form id="submit-form">
-                                    <input
-                                        id="repository"
-                                        type="url"
-                                        required
-                                        maxlength="2048"
-                                        data-copy-aria-label="submission.repositoryLabel"
-                                        data-copy-placeholder="submission.repositoryPlaceholder"
-                                        aria-describedby="cauldron-content"
-                                        autocomplete="url"
-                                        spellcheck="false"
-                                    />
+                            <div id="cauldron-content" data-prose="cauldron"></div>
+                            <form id="submit-form">
+                                <input
+                                    id="repository"
+                                    type="url"
+                                    required
+                                    maxlength="2048"
+                                    data-copy-aria-label="submission.repositoryLabel"
+                                    data-copy-placeholder="submission.repositoryPlaceholder"
+                                    aria-describedby="cauldron-content"
+                                    autocomplete="url"
+                                    spellcheck="false"
+                                />
+                                <div class="submission-actions">
                                     <button id="submit-button" class="primary" type="submit">
                                         <span class="spinner" aria-hidden="true" hidden></span>
                                         <span id="submit-label" data-copy="submission.submit"></span>
                                     </button>
-                                </form>
-                                <p
-                                    id="inspection-help"
-                                    class="fine-print"
-                                    data-copy="submission.inspectionHelp"
-                                    role="status"
-                                    hidden
-                                ></p>
-                                <p id="submit-result" role="status"></p>
-                            </div>
-                            <div id="submission-receipt" hidden>
-                                <p id="status" role="status" tabindex="-1"></p>
-                                <div class="status-actions">
-                                    <button
-                                        id="copy-status-link"
-                                        type="button"
-                                        data-copy="submission.copyLink"
-                                    ></button>
                                     <button
                                         id="refresh-status"
                                         type="button"
                                         data-copy="submission.refresh"
                                     ></button>
-                                    <button
-                                        id="another-game"
-                                        class="primary"
-                                        type="button"
-                                        data-copy="submission.another"
-                                    ></button>
+                                    <p id="status" role="status" tabindex="-1"></p>
                                 </div>
-                                <p id="status-action-result" class="fine-print" role="status"></p>
-                            </div>
+                            </form>
+                            <p
+                                id="inspection-help"
+                                class="fine-print"
+                                data-copy="submission.inspectionHelp"
+                                role="status"
+                                hidden
+                            ></p>
                         </section>
                         <section id="shelf-panel" data-theme="wood" hidden>
                             <p id="shelf-result" role="status" hidden></p>

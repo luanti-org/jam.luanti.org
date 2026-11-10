@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { HTTPException } from "hono/http-exception";
 import {
-    createIdentity, getAdminImage, getAdminQueue, getSubmissionStatus, jam, listBrews,
+    createIdentity, getAdminImage, getAdminQueue, getRepositoryStatus, getSubmissionStatus, jam, listBrews,
     moderateEntry, restoreIdentity, submitBrew,
 } from "../client/sdk";
 import workshop from "../content/workshop.json";
@@ -78,6 +78,76 @@ function expectPurged(store: Store, id: string, status: string) {
     expect(store.db.query("SELECT status, title, description, image FROM submissions WHERE id = ?").get(id))
         .toEqual({ status, title: null, description: null, image: null });
 }
+
+test("repository status reads existing databases after the jam without inspections or record changes", async () => {
+    const f = await fixture();
+    const repository = "https://github.com/o/game";
+    const now = Date.now();
+    const first = f.store.recordSubmission(f.config.jamId, repository, snapshot(), now, "/tree/{sha}");
+    f.store.moderate({ id: first.id, revision: 0, operation: "approve" }, f.identity.publicKey, now, f.config.jamId);
+    const second = f.store.recordSubmission(f.config.jamId, repository, snapshot(sha("b")), now, "/tree/{sha}");
+    f.store.recordSubmission("another-jam", repository, snapshot(sha("f")), now + 1, "/tree/{sha}");
+    const rows = f.store.db.query("SELECT * FROM submissions ORDER BY rowid").all();
+    const budgets = f.store.db.query("SELECT * FROM budgets ORDER BY key").all();
+    const version = f.store.db.query("PRAGMA user_version").get();
+    const reopened = new Store(f.directory);
+
+    try {
+        const app = createApp({ config: { ...f.config, endsAt: 0 }, store: reopened });
+        const options = { fetch: ((input, init) => app.fetch(new Request(input, init))) as typeof fetch };
+        const result = await getRepositoryStatus(f.config.audience, "http://www.github.com/O/GAME.git/", options);
+        expect(result).toEqual({ ...second, repository });
+        expect(result).not.toHaveProperty("title");
+        expect(result).not.toHaveProperty("description");
+        expect(result).not.toHaveProperty("hasScreenshot");
+        await expect(getRepositoryStatus(f.config.audience, "https://github.com/o/unknown", options))
+            .rejects.toMatchObject({ status: 404 });
+        await expect(getRepositoryStatus(f.config.audience, "https://unknown.example/o/game", options))
+            .rejects.toMatchObject({ status: 400 });
+        expect((await app.request("/api/submissions")).status).toBe(400);
+        expect(reopened.db.query("SELECT * FROM submissions ORDER BY rowid").all()).toEqual(rows);
+        expect(reopened.db.query("SELECT * FROM budgets ORDER BY key").all()).toEqual(budgets);
+        expect(reopened.db.query("PRAGMA user_version").get()).toEqual(version);
+    } finally {
+        reopened.close();
+    }
+});
+
+test("repository status follows replacement pending commits and retains the latest review feedback", async () => {
+    const f = await fixture();
+    const api = f.config.audience;
+    const repository = "https://github.com/o/game";
+    const now = Date.now();
+    const first = f.store.recordSubmission(f.config.jamId, repository, snapshot(), now, "/tree/{sha}");
+    f.store.moderate({ id: first.id, revision: 0, operation: "approve" }, f.identity.publicKey, now, f.config.jamId);
+    const second = f.store.recordSubmission(f.config.jamId, repository, snapshot(sha("b")), now, "/tree/{sha}");
+    const third = f.store.recordSubmission(f.config.jamId, repository, snapshot(sha("c")), now, "/tree/{sha}");
+    expectPurged(f.store, second.id, "superseded");
+    expect(await getRepositoryStatus(api, repository, f.options)).toEqual({ ...third, repository });
+    expect((await listBrews(api, f.options))[0].id).toBe(first.id);
+
+    f.store.moderate({ id: third.id, revision: 0, operation: "reject", reason: "Add credits" },
+        f.identity.publicKey, now + 1, f.config.jamId);
+    expect(await getRepositoryStatus(api, repository, f.options)).toMatchObject({
+        id: third.id, status: "rejected", reason: "Add credits",
+    });
+
+    // Reopening an older review makes it current even though its submission predates the rejection.
+    f.store.restore({ id: second.id, revision: 1, operation: "reinspect" }, snapshot(sha("b")),
+        f.identity.publicKey, now + 2, f.config.jamId);
+    expect(await getRepositoryStatus(api, repository, f.options)).toMatchObject({ id: second.id, status: "pending" });
+    f.store.moderate({ id: second.id, revision: 2, operation: "reject", reason: "Still unsuitable" },
+        f.identity.publicKey, now + 3, f.config.jamId);
+    expect(await getRepositoryStatus(api, repository, f.options)).toMatchObject({
+        id: third.id, status: "rejected", reason: "Add credits",
+    });
+
+    // Reading status neither resolves a changed HEAD nor submits it.
+    f.setHead(sha("d"));
+    expect(await getRepositoryStatus(api, repository, f.options)).toMatchObject({ commit: third.commit });
+    expect(f.inspected).toEqual([]);
+    expect(f.store.queue(f.config.jamId)).toHaveLength(3);
+});
 
 test("each commit has a receipt; pending updates preserve publication and duplicates return every existing state", async () => {
     const f = await fixture();

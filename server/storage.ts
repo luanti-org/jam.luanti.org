@@ -313,6 +313,22 @@ export class Store {
         return row;
     }
 
+    /** Read existing rows only. Pending work takes precedence over the latest recorded submission. */
+    repositoryStatus(repository: string, jamId: string) {
+        const row = this.db.query<Receipt & { repository: string }, [string, string]>(`
+            SELECT id, repository, "commit", submitted_at AS submittedAt, status, reason,
+                repository || replace(commit_path, '{sha}', "commit") AS commitUrl
+            FROM submissions WHERE jam_id = ? AND repository = ?
+            ORDER BY (status = 'pending') DESC, submitted_at DESC, rowid DESC LIMIT 1
+        `).get(jamId, repository);
+
+        if (!row) {
+            throw new HTTPException(404, { message: "Submission not found" });
+        }
+
+        return row;
+    }
+
     listEntries(jamId: string) {
         // An approved row's updated_at is its approval time; pending updates have separate rows.
         return this.db.query<Omit<Entry, "hasScreenshot"> & { hasScreenshot: number }, [string, number]>(`

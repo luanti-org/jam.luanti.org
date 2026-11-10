@@ -11,6 +11,7 @@ import { clientIdentity, type Config, maxRequestBodyBytes } from "./config";
 import { Store } from "./storage";
 import { InspectionLimitError } from "./inspection-errors";
 import { createSubmissions } from "./submissions";
+import { repositoryInfo } from "./repositories";
 
 const hourMs = 3600000;
 const maxAdminTokenLength = 16000;
@@ -160,6 +161,11 @@ export function createApp({
         );
     });
     app.get("/api/brews", (context) => context.json(store.listEntries(config.jamId)));
+    app.get("/api/submissions", zValidator("query", submissionSchema, validationHook), (context) => {
+        const { repository } = repositoryInfo(context.req.valid("query").repository);
+
+        return context.json(store.repositoryStatus(repository, config.jamId));
+    });
     app.get(
         "/api/submissions/:id",
         zValidator("param", z.strictObject({ id: z.uuid() }), validationHook),

@@ -1,6 +1,6 @@
 import {
     ApiError,
-    getSubmissionStatus,
+    getRepositoryStatus,
     ingredientCatalog,
     jam,
     listBrews,
@@ -290,16 +290,39 @@ const submissionCopy = workshop.submission;
 const form = element<HTMLFormElement>("submit-form");
 const repository = element<HTMLInputElement>("repository");
 const submitButton = element<HTMLButtonElement>("submit-button");
-let statusRequest: AbortController | undefined;
-let currentStatus: Awaited<ReturnType<typeof getSubmissionStatus>> | undefined;
+const checkButton = element<HTMLButtonElement>("refresh-status");
+let currentStatus: Awaited<ReturnType<typeof submitBrew>> | undefined;
 
-function showReceipt() {
-    element("submission-entry").hidden = true;
-    element("submission-receipt").hidden = false;
-    element("status-action-result").textContent = "";
+function repositoryLink(value?: string) {
+    const url = new URL(location.href);
+    url.searchParams.delete("submission");
+
+    if (value) {
+        url.searchParams.set("repo", value);
+    } else {
+        url.searchParams.delete("repo");
+    }
+
+    history.replaceState(null, "", url);
 }
 
-function showStatus(state: Awaited<ReturnType<typeof getSubmissionStatus>>, submitted = false) {
+function submissionBusy(busy: boolean, inspecting = false) {
+    submitButton.disabled = busy;
+    checkButton.disabled = busy;
+    repository.disabled = busy;
+
+    if (busy) {
+        form.setAttribute("aria-busy", "true");
+    } else {
+        form.removeAttribute("aria-busy");
+    }
+
+    submitButton.querySelector<HTMLElement>(".spinner")!.hidden = !inspecting;
+    element("submit-label").textContent = inspecting ? submissionCopy.inspecting : submissionCopy.submit;
+    element("inspection-help").hidden = !inspecting;
+}
+
+function showStatus(state: Awaited<ReturnType<typeof submitBrew>>, submitted = false) {
     const link = document.createElement("a");
     link.href = state.commitUrl;
     link.textContent = state.commit.slice(0, 7);
@@ -324,28 +347,25 @@ function showStatus(state: Awaited<ReturnType<typeof getSubmissionStatus>>, subm
 }
 
 async function status() {
-    const id = new URL(location.href).searchParams.get("submission");
+    validateRepository();
 
-    if (!id) {
+    if (checkButton.disabled || !form.reportValidity()) {
         return;
     }
 
-    statusRequest?.abort();
-    const request = new AbortController();
-    statusRequest = request;
+    submissionBusy(true);
+    repositoryLink(repository.value);
     element("status").textContent = submissionCopy.checking;
-    element("status-action-result").textContent = "";
 
     try {
-        const state = await getSubmissionStatus(api, id, { signal: request.signal });
-
-        if (!request.signal.aborted) {
-            showStatus(state);
-        }
+        const state = await getRepositoryStatus(api, repository.value);
+        repository.value = state.repository;
+        repositoryLink(state.repository);
+        showStatus(state);
     } catch (error) {
-        if (!request.signal.aborted) {
-            element("status").textContent = message(error);
-        }
+        element("status").textContent = message(error);
+    } finally {
+        submissionBusy(false);
     }
 }
 
@@ -362,29 +382,13 @@ function validateRepository() {
     repository.setCustomValidity(repository.value && !webUrl ? submissionCopy.httpsError : "");
 }
 
-repository.addEventListener("input", validateRepository);
-element("copy-status-link").addEventListener("click", async () => {
-    try {
-        await navigator.clipboard.writeText(location.href);
-        element("status-action-result").textContent = submissionCopy.linkCopied;
-    } catch {
-        element("status-action-result").textContent = submissionCopy.copyFailure;
-    }
-});
-element("refresh-status").addEventListener("click", () => void status());
-element("another-game").addEventListener("click", () => {
-    statusRequest?.abort();
+repository.addEventListener("input", () => {
+    validateRepository();
     currentStatus = undefined;
-    const url = new URL(location.href);
-    url.searchParams.delete("submission");
-    history.replaceState(null, "", url);
-    form.reset();
-    repository.setCustomValidity("");
-    element("submission-entry").hidden = false;
-    element("submission-receipt").hidden = true;
-    element("submit-result").textContent = "";
-    repository.focus();
+    element("status").textContent = "";
+    repositoryLink();
 });
+checkButton.addEventListener("click", () => void status());
 
 form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -394,21 +398,13 @@ form.addEventListener("submit", async (event) => {
         return;
     }
 
-    submitButton.disabled = true;
-    repository.disabled = true;
-    form.setAttribute("aria-busy", "true");
-    submitButton.querySelector<HTMLElement>(".spinner")!.hidden = false;
-    element("submit-label").textContent = submissionCopy.inspecting;
-    element("inspection-help").hidden = false;
-    element("submit-result").textContent = "";
+    submissionBusy(true, true);
+    element("status").textContent = "";
 
     try {
         repository.value = repository.value.replace(/^http:\/\//i, "https://");
         const result = await submitBrew(api, repository.value);
-        const url = new URL(location.href);
-        url.searchParams.set("submission", result.id);
-        history.replaceState(null, "", url);
-        showReceipt();
+        repositoryLink(repository.value);
         showStatus(result, true);
 
         if (panel.open && !element("submission-panel").hidden) {
@@ -417,14 +413,9 @@ form.addEventListener("submit", async (event) => {
     } catch (error) {
         const template = error instanceof ApiError && error.status === 422
             ? submissionCopy.inspectionFailure : submissionCopy.submitFailure;
-        element("submit-result").textContent = substitute(template, { error: message(error) });
+        element("status").textContent = substitute(template, { error: message(error) });
     } finally {
-        submitButton.disabled = false;
-        repository.disabled = false;
-        form.removeAttribute("aria-busy");
-        submitButton.querySelector<HTMLElement>(".spinner")!.hidden = true;
-        element("submit-label").textContent = submissionCopy.submit;
-        element("inspection-help").hidden = true;
+        submissionBusy(false);
     }
 });
 
@@ -561,9 +552,11 @@ document.addEventListener("visibilitychange", () => {
     }
 });
 
-// A saved receipt opens its status immediately; ordinary visits begin in the room.
-if (new URL(location.href).searchParams.has("submission")) {
-    showReceipt();
+// Repository links look up recorded status without submitting or inspecting Git.
+const linkedRepository = new URL(location.href).searchParams.get("repo");
+
+if (linkedRepository) {
+    repository.value = linkedRepository;
     openPanel("submission-panel", document.querySelector<HTMLButtonElement>(".cauldron")!);
     void status();
 }

@@ -20,6 +20,8 @@ import {
     type ModerationDecision,
     reviewSchema,
     statusSchema,
+    repositoryStatusSchema,
+    submissionSchema,
     shelfLimit,
 } from "../shared/schemas";
 import type { Identity } from "../shared/signatures";
@@ -99,6 +101,13 @@ export function listBrews(apiUrl: string, options?: CallOptions) {
 
 export function getSubmissionStatus(apiUrl: string, id: string, options?: CallOptions) {
     return request(apiUrl, `/submissions/${z.uuid().parse(id)}`, undefined, statusSchema, options);
+}
+
+/** Read recorded status without inspecting Git, preferring pending work over the latest submission. */
+export function getRepositoryStatus(apiUrl: string, repository: string, options?: CallOptions) {
+    const query = new URLSearchParams(submissionSchema.parse({ repository }));
+
+    return request(apiUrl, `/submissions?${query}`, undefined, repositoryStatusSchema, options);
 }
 
 async function adminRequest<T>(
