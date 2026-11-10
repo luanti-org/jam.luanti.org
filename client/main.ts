@@ -293,18 +293,6 @@ const submitButton = element<HTMLButtonElement>("submit-button");
 const checkButton = element<HTMLButtonElement>("refresh-status");
 let currentStatus: Awaited<ReturnType<typeof submitBrew>> | undefined;
 
-function repositoryLink(value?: string) {
-    const url = new URL(location.href);
-
-    if (value) {
-        url.searchParams.set("repo", value);
-    } else {
-        url.searchParams.delete("repo");
-    }
-
-    history.replaceState(null, "", url);
-}
-
 function submissionBusy(busy: boolean, inspecting = false) {
     submitButton.disabled = busy;
     checkButton.disabled = busy;
@@ -353,13 +341,11 @@ async function status() {
     }
 
     submissionBusy(true);
-    repositoryLink(repository.value);
     element("status").textContent = submissionCopy.checking;
 
     try {
         const state = await getRepositoryStatus(api, repository.value);
         repository.value = state.repository;
-        repositoryLink(state.repository);
         showStatus(state);
     } catch (error) {
         element("status").textContent = message(error);
@@ -385,7 +371,6 @@ repository.addEventListener("input", () => {
     validateRepository();
     currentStatus = undefined;
     element("status").textContent = "";
-    repositoryLink();
 });
 checkButton.addEventListener("click", () => void status());
 
@@ -403,7 +388,6 @@ form.addEventListener("submit", async (event) => {
     try {
         repository.value = repository.value.replace(/^http:\/\//i, "https://");
         const result = await submitBrew(api, repository.value);
-        repositoryLink(repository.value);
         showStatus(result, true);
 
         if (panel.open && !element("submission-panel").hidden) {
@@ -550,12 +534,3 @@ document.addEventListener("visibilitychange", () => {
         }
     }
 });
-
-// Repository links look up recorded status without submitting or inspecting Git.
-const linkedRepository = new URL(location.href).searchParams.get("repo");
-
-if (linkedRepository) {
-    repository.value = linkedRepository;
-    openPanel("submission-panel", document.querySelector<HTMLButtonElement>(".cauldron")!);
-    void status();
-}
