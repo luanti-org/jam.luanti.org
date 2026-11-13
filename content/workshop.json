@@ -80,7 +80,7 @@
         "submit": "Submit",
         "inspecting": "Inspecting...",
         "inspectionHelp": "Checks usually take seconds, though delays are possible. Keep this page open; you can explore the room while you wait.",
-        "httpsError": "Use an HTTP or HTTPS repository URL. It will be submitted over HTTPS.",
+        "httpsError": "Enter a repository URL, optionally starting with http:// or https://. It will use HTTPS.",
         "inspectionFailure": "Inspection failed: {{error}}",
         "submitFailure": "Submission could not be completed: {{error}}",
         "checking": "Checking submission...",

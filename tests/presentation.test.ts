@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import hosts from "../content/hosts.json";
-import { ingredientCatalog, jam, submitBrew } from "../client/sdk";
+import { getRepositoryStatus, ingredientCatalog, jam, submitBrew } from "../client/sdk";
 import wizard from "../content/wizard.json";
 import workshop from "../content/workshop.json";
 import { renderMarkdown, renderPage, renderProse, renderWizard, renderWorkshop } from "../client/markdown";
@@ -202,24 +202,43 @@ test("unsupported submission schemes fail locally before any transport", () => {
         throw new Error("Unexpected fetch");
     }) as unknown as typeof fetch;
 
-    for (const url of ["ftp://github.com/o/g", "ssh://github.com/o/g", "git@github.com:o/g"]) {
-        expect(() => submitBrew("https://api.example.org", url, { fetch: fetcher })).toThrow();
+    for (const url of [
+        "ftp://github.com/o/g", "ssh://github.com/o/g", "git://github.com/o/g", "git@github.com:o/g",
+        "mailto:github.com/o/g", "javascript:alert(1)", "data:text/plain,github.com/o/g", "custom:443/o/g", "ftp://",
+    ]) {
+        for (const operation of [submitBrew, getRepositoryStatus]) {
+            expect(() => operation("https://api.example.org", url, { fetch: fetcher })).toThrow();
+        }
     }
 
     expect(calls).toBe(0);
 });
 
-test("the SDK upgrades HTTP repository input before transport and leaves host policy to the server", async () => {
+test("the SDK normalizes bare, HTTP and HTTPS repository inputs for submissions and status reads", async () => {
     const repository = "https://github.com/o/g";
     let calls = 0;
     const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
         calls++;
-        expect(String(input)).toBe("https://api.example.org/api/brews/submit");
-        expect(JSON.parse(String(init?.body))).toEqual({ repository: "https://www.github.com/O/G.git" });
+        const url = new URL(String(input));
+        expect(url.origin).toBe("https://api.example.org");
+
+        if (url.pathname === "/api/brews/submit") {
+            expect(JSON.parse(String(init?.body))).toEqual({ repository: "https://www.github.com/O/G.git" });
+        } else {
+            expect(url.pathname).toBe("/api/submissions");
+            expect(url.searchParams.get("repository")).toBe("https://www.github.com/O/G.git");
+        }
 
         return Response.json({ repository, commit: "a".repeat(40), commitUrl: "https://github.com/o/g/tree/" + "a".repeat(40),
             submittedAt: new Date().toISOString(), status: "pending", reason: null });
     }) as typeof fetch;
-    expect((await submitBrew("https://api.example.org", "http://www.github.com/O/G.git", { fetch: fetcher })).repository).toBe(repository);
-    expect(calls).toBe(1);
+
+    for (const prefix of ["", "http://", "https://", "HTTP://", "HTTPS://"]) {
+        for (const operation of [submitBrew, getRepositoryStatus]) {
+            expect((await operation("https://api.example.org", `${prefix}www.github.com/O/G.git`, { fetch: fetcher })).repository)
+                .toBe(repository);
+        }
+    }
+
+    expect(calls).toBe(10);
 });

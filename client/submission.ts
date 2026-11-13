@@ -1,11 +1,12 @@
-import { ApiError, getRepositoryStatus, submitBrew } from "./sdk";
+import { ApiError, getRepositoryStatus, normalizeRepositoryUrl, submitBrew } from "./sdk";
 import { substitute } from "./presentation";
 import type workshop from "../content/workshop.json";
 
 export const submissionTemplate = `<form id="submit-form">
     <input
         id="repository"
-        type="url"
+        type="text"
+        inputmode="url"
         required
         maxlength="2048"
         data-copy-aria-label="submission.repositoryLabel"
@@ -107,15 +108,13 @@ export function initSubmission(root: HTMLElement, api: string, submissionCopy: t
 
     // This is presentation validation only; the server owns the repository host and namespace policy.
     function validateRepository() {
-        let webUrl = false;
+        repository.setCustomValidity("");
 
         try {
-            webUrl = ["http:", "https:"].includes(new URL(repository.value).protocol);
+            normalizeRepositoryUrl(repository.value);
         } catch {
-            // Required/type=url validation also explains empty or malformed input.
+            repository.setCustomValidity(repository.value ? submissionCopy.httpsError : "");
         }
-
-        repository.setCustomValidity(repository.value && !webUrl ? submissionCopy.httpsError : "");
     }
 
     repository.addEventListener("input", () => {
@@ -137,8 +136,8 @@ export function initSubmission(root: HTMLElement, api: string, submissionCopy: t
         element("status").textContent = "";
 
         try {
-            repository.value = repository.value.replace(/^http:\/\//i, "https://");
             const result = await submitBrew(api, repository.value);
+            repository.value = result.repository;
 
             // A duplicate can return a historical receipt; show the repository's current submission instead.
             const current = result.status === "superseded" ? await getRepositoryStatus(api, result.repository) : result;

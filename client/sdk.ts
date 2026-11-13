@@ -73,10 +73,15 @@ async function request<T>(
     }
 }
 
-/** Returns a new or existing commit receipt. Upgrades HTTP locally; repository security policy is server-owned. */
+export function normalizeRepositoryUrl(repository: string) {
+    const url = repository.includes(":") ? repository : `https://${repository}`;
+
+    return z.url({ protocol: /^https?$/ }).parse(url).replace(/^https?:\/\//i, "https://");
+}
+
+/** Returns a new or existing commit receipt. Repository security policy is server-owned. */
 export function submitBrew(apiUrl: string, repository: string, options: CallOptions = {}) {
-    repository = repository.replace(/^http:\/\//i, "https://");
-    z.url({ protocol: /^https$/ }).parse(repository);
+    repository = normalizeRepositoryUrl(repository);
 
     return request(apiUrl, "/brews/submit", { repository }, statusSchema, {
         ...options,
@@ -100,6 +105,7 @@ export function listBrews(apiUrl: string, options?: CallOptions) {
 
 /** Read recorded status without inspecting Git, preferring pending work over the latest submission. */
 export function getRepositoryStatus(apiUrl: string, repository: string, options?: CallOptions) {
+    repository = normalizeRepositoryUrl(repository);
     const query = new URLSearchParams(submissionSchema.parse({ repository }));
 
     return request(apiUrl, `/submissions?${query}`, undefined, statusSchema, options);
