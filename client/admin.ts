@@ -332,7 +332,9 @@ async function refresh() {
             rows.set(entry, row);
         }
 
-        for (const commits of Map.groupBy(entries, (entry) => entry.repository).values()) {
+        const repositories = Map.groupBy(entries, (entry) => entry.repository);
+
+        for (const commits of repositories.values()) {
             if (commits.length < 2) {
                 continue;
             }
@@ -353,7 +355,7 @@ async function refresh() {
             rows.get(latest)!.append(details);
         }
 
-        element("entry-count").textContent = `(${entries.length})`;
+        element("entry-count").textContent = `(${repositories.size})`;
         element("result").textContent = entries.length ? "" : "No entries.";
     } catch (error) {
         if (!request.signal.aborted && !authorizationFailed(error)) {
