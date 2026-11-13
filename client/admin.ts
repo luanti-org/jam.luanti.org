@@ -151,6 +151,8 @@ async function refresh() {
                 || a.repository.localeCompare(b.repository) || a.commit.localeCompare(b.commit);
         });
 
+        const rows = new Map<(typeof entries)[number], HTMLLIElement>();
+
         for (const entry of entries) {
             const row = document.createElement("li");
             const heading = document.createElement("div");
@@ -327,6 +329,28 @@ async function refresh() {
 
             row.append(actions);
             element("queue").append(row);
+            rows.set(entry, row);
+        }
+
+        for (const commits of Map.groupBy(entries, (entry) => entry.repository).values()) {
+            if (commits.length < 2) {
+                continue;
+            }
+
+            commits.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt) || a.commit.localeCompare(b.commit));
+            const [latest, ...history] = commits;
+            const details = document.createElement("details");
+            const summary = document.createElement("summary");
+            const list = document.createElement("ul");
+            list.className = "review-history";
+            summary.textContent = `Previous commits (${history.length})`;
+
+            for (const previous of history) {
+                list.append(rows.get(previous)!);
+            }
+
+            details.append(summary, list);
+            rows.get(latest)!.append(details);
         }
 
         element("entry-count").textContent = `(${entries.length})`;
