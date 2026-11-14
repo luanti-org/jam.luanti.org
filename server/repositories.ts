@@ -13,6 +13,7 @@ const policySchema = z
             nested: z.boolean(),
             lowercase: z.boolean(),
             commit: z.enum(["/tree/{sha}", "/-/tree/{sha}", "/src/commit/{sha}", "/src/{sha}"]),
+            archive: z.enum(["/archive/{sha}.zip", "/-/archive/{sha}/{repo}-{sha}.zip", "/get/{sha}.zip"]),
         }),
     )
     .min(1)

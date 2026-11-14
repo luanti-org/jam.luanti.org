@@ -7,6 +7,7 @@ import siteIcons from "./assets/icons";
 import { initSubmission } from "./submission";
 import { renderProse, renderWizard, renderWorkshop } from "./markdown" with { type: "macro" };
 import { eventDates, populateLabels, recentlyPublished, substitute } from "./presentation";
+import { downloadLink } from "./download";
 
 const workshop = renderWorkshop();
 const dialogue = renderWizard();
@@ -364,9 +365,15 @@ async function shelf(afterChange = false) {
             const title = document.createElement("h3");
             const link = document.createElement("a");
             const description = document.createElement("p");
-            link.href = entry.repository;
+            link.href = entry.commitUrl;
             link.textContent = entry.title;
             title.append(link);
+            const download = downloadLink(entry, workshop.shelf.download);
+
+            if (download) {
+                title.append(" ", download);
+            }
+
             description.textContent = entry.description;
 
             const badge = document.createElement("span");

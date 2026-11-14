@@ -10,6 +10,7 @@ import {
 } from "./sdk";
 import { renderWorkshop } from "./markdown" with { type: "macro" };
 import { populateLabels } from "./presentation";
+import { downloadLink } from "./download";
 
 const workshop = renderWorkshop();
 
@@ -178,6 +179,12 @@ async function refresh() {
             submitted.dateTime = entry.submittedAt;
             submitted.textContent = new Date(entry.submittedAt).toLocaleString();
             title.append(link);
+            const download = downloadLink(entry, workshop.shelf.download);
+
+            if (download) {
+                title.append(" ", download);
+            }
+
             heading.append(status, title, commit, submitted);
 
             if (entry.title) {

@@ -5,6 +5,28 @@ import wizard from "../content/wizard.json";
 import workshop from "../content/workshop.json";
 import { renderMarkdown, renderPage, renderProse, renderWizard, renderWorkshop } from "../client/markdown";
 import { eventDates, recentlyPublished } from "../client/presentation";
+import { archiveUrl } from "../client/download";
+
+test("downloads pin the submitted commit for every host, preserving nested namespaces", () => {
+    const commit = "a1b2c3d4".repeat(5);
+    const cases = [
+        ["github.com", "owner/game", `/archive/${commit}.zip`],
+        ["gitlab.com", "group/subgroup/game", `/-/archive/${commit}/game-${commit}.zip`],
+        ["codeberg.org", "owner/game", `/archive/${commit}.zip`],
+        ["git.minetest.land", "owner/game", `/archive/${commit}.zip`],
+        ["bitbucket.org", "owner/game", `/get/${commit}.zip`],
+        ["gitgud.io", "group/subgroup/game", `/-/archive/${commit}/game-${commit}.zip`],
+        ["git.gay", "owner/game", `/archive/${commit}.zip`],
+    ];
+    expect(cases.map(([host]) => host)).toEqual(hosts.map(({ host }) => host));
+
+    for (const [host, path, archive] of cases) {
+        const repository = `https://${host}/${path}`;
+        expect(archiveUrl(repository, commit)).toBe(`${repository}${archive}`);
+    }
+
+    expect(archiveUrl("https://new-host.example/owner/game", commit)).toBeNull();
+});
 
 test("recent publication includes this instant and expires at 24 hours, excluding future dates", () => {
     const now = Date.parse("2026-11-10T12:00:00Z");

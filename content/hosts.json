@@ -3,42 +3,49 @@
         "host": "github.com",
         "nested": false,
         "lowercase": true,
-        "commit": "/tree/{sha}"
+        "commit": "/tree/{sha}",
+        "archive": "/archive/{sha}.zip"
     },
     {
         "host": "gitlab.com",
         "nested": true,
         "lowercase": true,
-        "commit": "/-/tree/{sha}"
+        "commit": "/-/tree/{sha}",
+        "archive": "/-/archive/{sha}/{repo}-{sha}.zip"
     },
     {
         "host": "codeberg.org",
         "nested": false,
         "lowercase": true,
-        "commit": "/src/commit/{sha}"
+        "commit": "/src/commit/{sha}",
+        "archive": "/archive/{sha}.zip"
     },
     {
         "host": "git.minetest.land",
         "nested": false,
         "lowercase": true,
-        "commit": "/src/commit/{sha}"
+        "commit": "/src/commit/{sha}",
+        "archive": "/archive/{sha}.zip"
     },
     {
         "host": "bitbucket.org",
         "nested": false,
         "lowercase": true,
-        "commit": "/src/{sha}"
+        "commit": "/src/{sha}",
+        "archive": "/get/{sha}.zip"
     },
     {
         "host": "gitgud.io",
         "nested": true,
         "lowercase": true,
-        "commit": "/-/tree/{sha}"
+        "commit": "/-/tree/{sha}",
+        "archive": "/-/archive/{sha}/{repo}-{sha}.zip"
     },
     {
         "host": "git.gay",
         "nested": false,
         "lowercase": true,
-        "commit": "/src/commit/{sha}"
+        "commit": "/src/commit/{sha}",
+        "archive": "/archive/{sha}.zip"
     }
 ]

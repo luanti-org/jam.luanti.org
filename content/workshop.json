@@ -95,6 +95,7 @@
         "commitLabel": "Commit"
     },
     "shelf": {
+        "download": "Download",
         "refresh": "Refresh shelf",
         "loading": "Loading approved brews...",
         "empty": "No approved entries yet.",

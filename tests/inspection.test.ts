@@ -65,6 +65,8 @@ test("allowed URLs canonicalize; namespaces and URL parser normalizations cannot
         ["codeberg.org", "/src/commit/{sha}"],
         ["git.minetest.land", "/src/commit/{sha}"],
         ["bitbucket.org", "/src/{sha}"],
+        ["gitgud.io", "/-/tree/{sha}"],
+        ["git.gay", "/src/commit/{sha}"],
     ]);
 
     for (const url of [
@@ -125,7 +127,7 @@ test("host policy is dynamically read and malformed policy fails closed", () => 
         expect(() => readHosts(path)).toThrow("policy is unavailable");
         writeFileSync(
             path,
-            JSON.stringify([{ host: "github.com", nested: false, lowercase: true, commit: "/tree/{sha}" }]),
+            JSON.stringify([{ host: "github.com", nested: false, lowercase: true, commit: "/tree/{sha}", archive: "/archive/{sha}.zip" }]),
         );
         expect(() => repositoryInfo("https://codeberg.org/o/g", readHosts(path))).toThrow();
         expect(repositoryInfo("https://github.com/o/g", readHosts(path)).repository).toBe(
@@ -134,7 +136,7 @@ test("host policy is dynamically read and malformed policy fails closed", () => 
         writeFileSync(
             path,
             JSON.stringify([
-                { host: "codeberg.org", nested: false, lowercase: false, commit: "/src/commit/{sha}" },
+                { host: "codeberg.org", nested: false, lowercase: false, commit: "/src/commit/{sha}", archive: "/archive/{sha}.zip" },
             ]),
         );
         expect(repositoryInfo("https://codeberg.org/Owner/Game", readHosts(path)).repository).toBe(
@@ -142,7 +144,12 @@ test("host policy is dynamically read and malformed policy fails closed", () => 
         );
 
         for (const commit of ["/commit/{sha}", "/commits/{sha}", "/tree/HEAD", "/tree/{sha}?x=1"]) {
-            writeFileSync(path, JSON.stringify([{ host: "github.com", nested: false, lowercase: true, commit }]));
+            writeFileSync(path, JSON.stringify([{ host: "github.com", nested: false, lowercase: true, commit, archive: "/archive/{sha}.zip" }]));
+            expect(() => readHosts(path)).toThrow("policy is unavailable");
+        }
+
+        for (const archive of ["//evil.test/{sha}.zip", "/archive/HEAD.zip", "/archive/{sha}.zip?x=1"]) {
+            writeFileSync(path, JSON.stringify([{ host: "github.com", nested: false, lowercase: true, commit: "/tree/{sha}", archive }]));
             expect(() => readHosts(path)).toThrow("policy is unavailable");
         }
     } finally {

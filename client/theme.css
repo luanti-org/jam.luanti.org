@@ -80,6 +80,34 @@ button:hover:not(:disabled):not(.hotspot) {
     filter: brightness(1.15);
 }
 
+.entry-download {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    margin-inline-start: 0.375rem;
+    border: 1px solid var(--control-border, var(--line));
+    border-radius: 2px;
+    background: var(--control-bg, var(--raised));
+    color: var(--control-ink, var(--ink));
+    vertical-align: middle;
+}
+
+.entry-download:hover {
+    filter: brightness(1.15);
+}
+
+.entry-download svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
 :is(button:disabled, fieldset:disabled button) {
     opacity: 0.55;
     cursor: default;
