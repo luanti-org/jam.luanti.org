@@ -374,6 +374,8 @@ async function shelf(afterChange = false) {
                 title.append(" ", download);
             }
 
+            description.className = "entry-description";
+            description.tabIndex = 0;
             description.textContent = entry.description;
 
             const badge = document.createElement("span");

@@ -99,10 +99,10 @@
         "refresh": "Refresh shelf",
         "loading": "Loading approved brews...",
         "empty": "No approved entries yet.",
-        "failure": "{{error}}. Refresh to retry; any previous entries are kept.",
+        "failure": "{{error}}. Refresh to retry.",
         "screenshotUnavailable": "Screenshot unavailable. You can still visit the game's repository.",
         "new": "NEW",
-        "newLabel": "Games published in the last 24 hours"
+        "newLabel": "Published in the last 24 hours"
     },
     "guide": {
         "title": "{{title}} - Text guide",

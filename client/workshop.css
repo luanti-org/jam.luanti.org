@@ -391,6 +391,36 @@ dialog[data-theme="iron"] {
     overscroll-behavior: contain;
 }
 
+.panel-body:has(> #shelf-panel:not([hidden])) {
+    overflow-y: scroll;
+}
+
+:is(.panel-body, .entry-description) {
+    scrollbar-gutter: stable;
+    scrollbar-color: var(--control-border) var(--control-bg);
+}
+
+/* Preserve the fixed-width track where native scrollbar colors would override it. */
+@supports selector(::-webkit-scrollbar-thumb) {
+    :is(.panel-body, .entry-description) {
+        scrollbar-color: auto;
+    }
+}
+
+:is(.panel-body, .entry-description)::-webkit-scrollbar {
+    width: 12px;
+}
+
+:is(.panel-body, .entry-description)::-webkit-scrollbar-track {
+    background: var(--control-bg);
+}
+
+:is(.panel-body, .entry-description)::-webkit-scrollbar-thumb {
+    border: 2px solid var(--control-bg);
+    border-radius: 2px;
+    background: var(--control-border);
+}
+
 h3 {
     font-size: 1.125rem;
     margin: 1.25rem 0 0.5rem;
@@ -654,6 +684,17 @@ input[type="url"] {
     font-size: 0.875rem;
 }
 
+#shelf-list .entry-description {
+    height: 4lh;
+    margin-bottom: 0.35rem;
+    overflow-y: scroll;
+    color: transparent;
+    background:
+        linear-gradient(var(--ink), var(--ink)) bottom / 100% 1lh no-repeat local,
+        linear-gradient(to bottom, var(--ink) 3lh, #3e2718) top / 100% 4lh no-repeat scroll;
+    background-clip: text;
+}
+
 #shelf-list img {
     display: block;
     width: 100%;
@@ -830,6 +871,13 @@ input[type="url"] {
     position: absolute;
     top: 0;
     right: 0;
+}
+
+#shelf-list .new-badge {
+    position: absolute;
+    top: 0;
+    left: 0.6rem;
+    transform: translateY(-50%);
 }
 
 .spinner {
