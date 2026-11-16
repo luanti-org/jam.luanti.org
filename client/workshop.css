@@ -687,12 +687,10 @@ p {
 #shelf-list .entry-description {
     height: 4lh;
     margin-bottom: 0.35rem;
-    overflow-y: scroll;
-    color: transparent;
+    overflow-y: auto;
     background:
-        linear-gradient(var(--ink), var(--ink)) bottom / 100% 1lh no-repeat local,
-        linear-gradient(to bottom, var(--ink) 3lh, #3e2718) top / 100% 4lh no-repeat scroll;
-    background-clip: text;
+        linear-gradient(to top, var(--entry-bg) 1lh, transparent) bottom / 100% 3lh no-repeat local,
+        linear-gradient(to top, #0d050480, #0d050400) bottom / 100% 1lh no-repeat scroll;
 }
 
 #shelf-list img {
@@ -726,11 +724,12 @@ p {
 }
 
 [data-theme="wood"] #shelf-list article {
+    --entry-bg: #3e2718;
     position: relative;
     margin: 0;
     padding: 0.6rem;
     border: 2px ridge #986639;
-    background: #3e2718;
+    background: var(--entry-bg);
 }
 
 .page-footer ul {
